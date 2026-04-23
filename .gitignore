@@ -1,0 +1,7 @@
+node_modules/
+backend/node_modules/
+mobile/node_modules/
+.env
+.expo/
+dist/
+build/
