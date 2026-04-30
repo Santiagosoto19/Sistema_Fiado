@@ -1,98 +1,119 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { styles } from '@/constants/home.styles';
+import { COLORS } from '@/constants/colors';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const recentActivity = [
+  {
+    initials: 'MR',
+    name: 'Maria Ruiz',
+    subtitle: 'Pago Recibido Hoy',
+    amount: '+$45.000,00',
+    amountColor: COLORS.upToDate,
+    bgColor: '#4CAF50',
+  },
+  {
+    initials: 'JP',
+    name: 'Juan Pedroza',
+    subtitle: 'Nuevo Crédito Hoy',
+    amount: '$80.000,00',
+    amountColor: COLORS.amount,
+    bgColor: '#FFC107',
+  },
+  {
+    initials: 'LC',
+    name: 'Luis Castro',
+    subtitle: 'Vencido Hace 3 Días',
+    amount: '$80.000,00',
+    amountColor: COLORS.overdue,
+    bgColor: '#FF5252',
+  },
+];
 
 export default function HomeScreen() {
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.bg} />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>Hola, Carlos</Text>
+            <Text style={styles.storeName}>Tienda El Vecino, San Roque</Text>
+          </View>
+          <TouchableOpacity style={styles.bellBtn}>
+            <Text style={styles.bellIcon}>🔔</Text>
+          </TouchableOpacity>
+        </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        {/* Total por Cobrar */}
+        <View style={styles.totalCard}>
+          <View>
+            <Text style={styles.totalLabel}>Total Por Cobrar</Text>
+            <Text style={styles.totalAmount}>$1.284.500</Text>
+            <Text style={styles.totalSub}>Actualizado Hoy</Text>
+          </View>
+          <View style={styles.totalIcon}>
+            <Text style={{ fontSize: 38 }}>💵</Text>
+          </View>
+        </View>
+
+
+        <View style={styles.statsRow}>
+          <View style={[styles.statCard, { marginRight: 8 }]}>
+            <Text style={styles.statLabel}>En mora</Text>
+            <Text style={[styles.statAmount, { color: COLORS.overdue }]}>$7.783.00</Text>
+            <View style={[styles.statBadge, { backgroundColor: COLORS.badge }]}>
+              <Text style={[styles.statBadgeText, { color: COLORS.badgeText }]}>5 clientes</Text>
+            </View>
+          </View>
+          <View style={[styles.statCard, { marginLeft: 8 }]}>
+            <Text style={styles.statLabel}>Al día</Text>
+            <Text style={[styles.statAmount, { color: COLORS.upToDate }]}>$7.783.00</Text>
+            <View style={[styles.statBadge, { backgroundColor: COLORS.badgeGreen }]}>
+              <Text style={[styles.statBadgeText, { color: COLORS.badgeGreenText }]}>10 clientes</Text>
+            </View>
+          </View>
+        </View>
+
+        <Text style={styles.sectionTitle}>Actividad Reciente</Text>
+        <View style={styles.activityCard}>
+          {recentActivity.map((item, idx) => (
+            <View
+              key={idx}
+              style={[
+                styles.activityRow,
+                idx < recentActivity.length - 1 && styles.activityDivider,
+              ]}
+            >
+              <View style={[styles.avatar, { backgroundColor: item.bgColor }]}>
+                <Text style={styles.avatarText}>{item.initials}</Text>
+              </View>
+              <View style={styles.activityInfo}>
+                <Text style={styles.activityName}>{item.name}</Text>
+                <Text style={styles.activitySub}>{item.subtitle}</Text>
+              </View>
+              <Text style={[styles.activityAmount, { color: item.amountColor }]}>
+                {item.amount}
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.btnRow}>
+          <TouchableOpacity style={styles.btnOutline}>
+            <Text style={styles.btnOutlineText}>+ Nuevo Crédito</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.btnFill}>
+            <Text style={styles.btnFillText}>Registrar Pago</Text>
+          </TouchableOpacity>
+        </View>
+
+      </ScrollView>
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
