@@ -1,119 +1,121 @@
-import { View, Text, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StatusBar,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { styles } from '@/constants/home.styles';
+import { loginStyles as styles } from '@/constants/login.styles';
 import { COLORS } from '@/constants/colors';
+import { useLogin } from '@/hooks/useLogin';
 
-const recentActivity = [
-  {
-    initials: 'MR',
-    name: 'Maria Ruiz',
-    subtitle: 'Pago Recibido Hoy',
-    amount: '+$45.000,00',
-    amountColor: COLORS.upToDate,
-    bgColor: '#4CAF50',
-  },
-  {
-    initials: 'JP',
-    name: 'Juan Pedroza',
-    subtitle: 'Nuevo Crédito Hoy',
-    amount: '$80.000,00',
-    amountColor: COLORS.amount,
-    bgColor: '#FFC107',
-  },
-  {
-    initials: 'LC',
-    name: 'Luis Castro',
-    subtitle: 'Vencido Hace 3 Días',
-    amount: '$80.000,00',
-    amountColor: COLORS.overdue,
-    bgColor: '#FF5252',
-  },
-];
+export default function LoginScreen() {
+  const {
+    email, password, showPassword, loading,
+    setEmail, setPassword,
+    togglePassword,
+    handleLogin, handleForgotPassword, handleRegister, handleGoogleLogin,
+  } = useLogin();
 
-export default function HomeScreen() {
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.bg} />
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
+    <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Hola, Carlos</Text>
-            <Text style={styles.storeName}>Tienda El Vecino, San Roque</Text>
-          </View>
-          <TouchableOpacity style={styles.bellBtn}>
-            <Text style={styles.bellIcon}>🔔</Text>
-          </TouchableOpacity>
+        {/* Título sobre fondo verde */}
+        <View style={styles.topSection}>
+          <Text style={styles.title}>Bienvenido A</Text>
+          <Text style={styles.titleBrand}>"FiadoCheck</Text>
         </View>
 
-        {/* Total por Cobrar */}
-        <View style={styles.totalCard}>
-          <View>
-            <Text style={styles.totalLabel}>Total Por Cobrar</Text>
-            <Text style={styles.totalAmount}>$1.284.500</Text>
-            <Text style={styles.totalSub}>Actualizado Hoy</Text>
-          </View>
-          <View style={styles.totalIcon}>
-            <Text style={{ fontSize: 38 }}>💵</Text>
-          </View>
-        </View>
+        {/* Card blanca que sube desde abajo */}
+        <View style={styles.card}>
 
+          {/* Email */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="example@example.com"
+              placeholderTextColor={COLORS.textMuted}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
 
-        <View style={styles.statsRow}>
-          <View style={[styles.statCard, { marginRight: 8 }]}>
-            <Text style={styles.statLabel}>En mora</Text>
-            <Text style={[styles.statAmount, { color: COLORS.overdue }]}>$7.783.00</Text>
-            <View style={[styles.statBadge, { backgroundColor: COLORS.badge }]}>
-              <Text style={[styles.statBadgeText, { color: COLORS.badgeText }]}>5 clientes</Text>
+          {/* Contraseña */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Contraseña</Text>
+            <View style={styles.passwordRow}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="••••••••"
+                placeholderTextColor={COLORS.textMuted}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity style={styles.eyeBtn} onPress={togglePassword}>
+                <Text style={styles.eyeIcon}>
+                  {showPassword ? '👁️' : '🙈'}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
-          <View style={[styles.statCard, { marginLeft: 8 }]}>
-            <Text style={styles.statLabel}>Al día</Text>
-            <Text style={[styles.statAmount, { color: COLORS.upToDate }]}>$7.783.00</Text>
-            <View style={[styles.statBadge, { backgroundColor: COLORS.badgeGreen }]}>
-              <Text style={[styles.statBadgeText, { color: COLORS.badgeGreenText }]}>10 clientes</Text>
-            </View>
+
+          {/* Botón Entrar */}
+          <TouchableOpacity
+            style={styles.btnPrimary}
+            onPress={handleLogin}
+            disabled={loading}
+            activeOpacity={0.85}
+          >
+            {loading
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={styles.btnPrimaryText}>Entrar</Text>
+            }
+          </TouchableOpacity>
+
+          {/* Olvidaste contraseña */}
+          <TouchableOpacity style={styles.forgotBtn} onPress={handleForgotPassword}>
+            <Text style={styles.forgotText}>¿Olvidaste la{'\n'}contraseña?</Text>
+          </TouchableOpacity>
+
+          {/* Botón Registrarse */}
+          <TouchableOpacity
+            style={styles.btnOutline}
+            onPress={handleRegister}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.btnOutlineText}>Registrarse</Text>
+          </TouchableOpacity>
+
+          {/* Google */}
+          <Text style={styles.orText}>o regístrate con</Text>
+          <TouchableOpacity style={styles.googleBtn} onPress={handleGoogleLogin}>
+            <Text style={styles.googleIcon}>G</Text>
+          </TouchableOpacity>
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>No tienes una cuenta? </Text>
+            <TouchableOpacity onPress={handleRegister}>
+              <Text style={styles.footerLink}>Regístrate</Text>
+            </TouchableOpacity>
           </View>
-        </View>
 
-        <Text style={styles.sectionTitle}>Actividad Reciente</Text>
-        <View style={styles.activityCard}>
-          {recentActivity.map((item, idx) => (
-            <View
-              key={idx}
-              style={[
-                styles.activityRow,
-                idx < recentActivity.length - 1 && styles.activityDivider,
-              ]}
-            >
-              <View style={[styles.avatar, { backgroundColor: item.bgColor }]}>
-                <Text style={styles.avatarText}>{item.initials}</Text>
-              </View>
-              <View style={styles.activityInfo}>
-                <Text style={styles.activityName}>{item.name}</Text>
-                <Text style={styles.activitySub}>{item.subtitle}</Text>
-              </View>
-              <Text style={[styles.activityAmount, { color: item.amountColor }]}>
-                {item.amount}
-              </Text>
-            </View>
-          ))}
         </View>
-
-        <View style={styles.btnRow}>
-          <TouchableOpacity style={styles.btnOutline}>
-            <Text style={styles.btnOutlineText}>+ Nuevo Crédito</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.btnFill}>
-            <Text style={styles.btnFillText}>Registrar Pago</Text>
-          </TouchableOpacity>
-        </View>
-
-      </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
