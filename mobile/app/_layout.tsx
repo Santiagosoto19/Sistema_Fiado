@@ -15,6 +15,8 @@ import {
 } from '@expo-google-fonts/poppins';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useSessionTimeout } from '@/hooks/useSessionTimeout';
+
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -23,6 +25,7 @@ export const unstable_settings = {
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  useSessionTimeout();
   const colorScheme = useColorScheme();
   const [fontsLoaded] = useFonts({
     Poppins_400Regular,
@@ -40,13 +43,15 @@ export default function RootLayout() {
 
   if (!fontsLoaded) return null;
 
-  return (
+return (
     <SafeAreaProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack screenOptions={{headerShown: false}}>
-          <Stack.Screen name="(tabs)"/>
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-        </Stack>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+          </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>
     </SafeAreaProvider>

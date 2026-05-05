@@ -25,6 +25,6 @@ export default function Index() {
   return isLogged ? (
     <Redirect href="/(tabs)/dashboard" />
   ) : (
-    <Redirect href="/login" />
+     <Redirect href="/login" />
   );
 }
