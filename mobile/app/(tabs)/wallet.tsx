@@ -1,28 +1,7 @@
-import React from 'react';
-import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
-
-import { AppFonts, Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Redirect } from 'expo-router';
 
 export default function WalletScreen() {
-  const colorScheme = useColorScheme();
-  const palette = Colors[colorScheme ?? 'light'].palette ?? Colors.light.palette;
-
-  return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: palette.surface }]}>
-      <View style={styles.content}>
-        <Text style={[styles.title, { color: palette.text }]}>Cartera</Text>
-        <Text style={[styles.subtitle, { color: palette.textMuted }]}>
-          Pantalla en construcción.
-        </Text>
-      </View>
-    </SafeAreaView>
-  );
+  // Redirigimos automáticamente de la pestaña 'Cartera' a la pantalla de 'Vista Usuario'
+  // Esto asegura que el usuario vea la implementación completa de la Vista Usuario
+  return <Redirect href="/vistaUsuario" />;
 }
-
-const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  content: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
-  title: { fontSize: 18, fontWeight: '900', fontFamily: AppFonts.extraBold },
-  subtitle: { marginTop: 8, fontSize: 12, fontWeight: '700', fontFamily: AppFonts.regular },
-});
