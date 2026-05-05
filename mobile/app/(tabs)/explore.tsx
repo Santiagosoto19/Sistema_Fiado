@@ -1,112 +1,172 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  FlatList,
+  StatusBar,
+  ActivityIndicator,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Stack } from 'expo-router';
+import { clientStyles as styles } from '@/constants/Clients.styles';
+import { COLORS } from '@/constants/colors';
+import { useClients, Cliente } from '@/hooks/Useclients';
 
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
 
-export default function TabTwoScreen() {
+const TOKEN = 'TOKEN_AQUI';
+
+const FILTROS = [
+  { key: 'todos',    label: 'Todos'    },
+  { key: 'mora',     label: 'En Mora'  },
+  { key: 'al_dia',   label: 'Al Día'   },
+  { key: 'sin_deuda',label: 'Sin Deuda'},
+];
+
+const getBadgeStyle = (estado: string, styles: any) => {
+  switch (estado) {
+    case 'al_dia':    return { badge: styles.badgeAlDia,   text: styles.badgeAlDiaText,   label: 'Al Día'  };
+    case 'mora':      return { badge: styles.badgeMora,    text: styles.badgeMoraText,    label: 'Mora'    };
+    case 'proximo':   return { badge: styles.badgeProximo, text: styles.badgeProximoText, label: 'Próximo' };
+    default:          return { badge: styles.badgeAlDia,   text: styles.badgeAlDiaText,   label: 'Sin Deuda'};
+  }
+};
+
+const getSubtituloStyle = (tipo: string) => {
+  switch (tipo) {
+    case 'mora':    return styles.clientSubMora;
+    case 'proximo': return styles.clientSubProximo;
+    default:        return {};
+  }
+};
+
+const ClienteItem = ({ item, onPress }: { item: Cliente; onPress: () => void }) => {
+  const badge = getBadgeStyle(item.estado, styles);
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Explore
-        </ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
-        />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+    <TouchableOpacity style={styles.clientCard} onPress={onPress} activeOpacity={0.75}>
+      {/* Avatar */}
+      <View style={[styles.avatar, { backgroundColor: item.bgColor }]}>
+        <Text style={styles.avatarText}>{item.initials}</Text>
+      </View>
+
+      {/* Info */}
+      <View style={styles.clientInfo}>
+        <Text style={styles.clientName}>{item.nombre_completo}</Text>
+        <Text style={[styles.clientSub, getSubtituloStyle(item.subtituloTipo)]}>
+          {item.subtitulo}
+        </Text>
+      </View>
+
+      {/* Monto y badge */}
+      <View style={styles.amountCol}>
+        <Text style={styles.clientAmount}>{item.monto}</Text>
+        <View style={[styles.badge, badge.badge]}>
+          <Text style={[styles.badgeText, badge.text]}>{badge.label}</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+export default function ClientsScreen() {
+  const {
+    clientes,
+    busqueda,
+    setBusqueda,
+    filtroActivo,
+    loading,
+    total,
+    handleFiltro,
+    handleNuevoCliente,
+    handleClientePress,
+  } = useClients(TOKEN);
+
+  return (
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Clientes</Text>
+          <TouchableOpacity style={styles.bellBtn}>
+            <Text style={styles.bellIcon}>🔔</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Sub header */}
+        <View style={styles.subHeader}>
+          <Text style={styles.subHeaderText}>☑ {total} Clientes Registrados</Text>
+        </View>
+
+        {/* Card */}
+        <View style={styles.card}>
+
+          {/* Buscador */}
+          <View style={styles.searchRow}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Buscar Cliente..."
+              placeholderTextColor={COLORS.textMuted}
+              value={busqueda}
+              onChangeText={setBusqueda}
+            />
+            <TouchableOpacity style={styles.searchBtn}>
+              <Text style={styles.searchIcon}>🔍</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Filtros */}
+          <View style={styles.filtersRow}>
+            {FILTROS.map(f => (
+              <TouchableOpacity
+                key={f.key}
+                style={[styles.filterBtn, filtroActivo === f.key && styles.filterBtnActive]}
+                onPress={() => handleFiltro(f.key as any)}
+              >
+                <Text style={[styles.filterText, filtroActivo === f.key && styles.filterTextActive]}>
+                  {f.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Lista */}
+          {loading
+            ? <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 40 }} />
+            : (
+              <FlatList
+                data={clientes}
+                keyExtractor={item => item.id_cliente.toString()}
+                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={false}
+                renderItem={({ item }) => (
+                  <ClienteItem
+                    item={item}
+                    onPress={() => handleClientePress(item.id_cliente)}
+                  />
+                )}
+                ListEmptyComponent={
+                  <Text style={{ textAlign: 'center', color: COLORS.textMuted, marginTop: 40 }}>
+                    No se encontraron clientes
+                  </Text>
+                }
+              />
+            )
+          }
+        </View>
+
+        {/* Botón registrar */}
+        <TouchableOpacity style={styles.btnRegistrar} onPress={handleNuevoCliente}>
+          <Text style={styles.btnRegistrarText}>+ Registrar Nuevo Cliente</Text>
+        </TouchableOpacity>
+
+      </SafeAreaView>
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-});

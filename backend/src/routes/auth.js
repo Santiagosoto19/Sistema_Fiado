@@ -55,7 +55,7 @@ router.post('/login', async (req, res) => {
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     await pool.query(
-      'INSERT INTO sesiones (id_usuario, token_hash, expires_at, revoke) VALUES ($1, $2, $3, false)',
+      'INSERT INTO sesiones (id_usuario, token_hash, expires_at, revocado) VALUES ($1, $2, $3, false)',
       [user.id_usuario, tokenHash, expiresAt]
     );
 
