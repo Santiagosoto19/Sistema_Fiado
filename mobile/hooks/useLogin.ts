@@ -4,8 +4,6 @@ import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CONFIG } from '@/config/config';
 
-
-// Cambia por tu IP local
 const API_URL = CONFIG.API_URL;
 
 type Usuario = {

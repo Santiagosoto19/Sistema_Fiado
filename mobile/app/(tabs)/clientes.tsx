@@ -8,27 +8,27 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Stack, useFocusEffect } from 'expo-router';
 import { clientStyles as styles } from '@/constants/Clients.styles';
 import { COLORS } from '@/constants/colors';
 import { useClients, Cliente } from '@/hooks/Useclients';
-
-
-const TOKEN = 'TOKEN_AQUI';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Search, Bell, BadgeCheck } from 'lucide-react-native';
 
 const FILTROS = [
-  { key: 'todos',    label: 'Todos'    },
-  { key: 'mora',     label: 'En Mora'  },
-  { key: 'al_dia',   label: 'Al Día'   },
-  { key: 'sin_deuda',label: 'Sin Deuda'},
+  { key: 'todos',     label: 'Todos'     },
+  { key: 'mora',      label: 'En Mora'   },
+  { key: 'al_dia',    label: 'Al Día'    },
+  { key: 'sin_deuda', label: 'Sin Deuda' },
 ];
 
 const getBadgeStyle = (estado: string, styles: any) => {
   switch (estado) {
-    case 'al_dia':    return { badge: styles.badgeAlDia,   text: styles.badgeAlDiaText,   label: 'Al Día'  };
-    case 'mora':      return { badge: styles.badgeMora,    text: styles.badgeMoraText,    label: 'Mora'    };
-    case 'proximo':   return { badge: styles.badgeProximo, text: styles.badgeProximoText, label: 'Próximo' };
-    default:          return { badge: styles.badgeAlDia,   text: styles.badgeAlDiaText,   label: 'Sin Deuda'};
+    case 'al_dia':  return { badge: styles.badgeAlDia,   text: styles.badgeAlDiaText,   label: 'Al Día'    };
+    case 'mora':    return { badge: styles.badgeMora,    text: styles.badgeMoraText,    label: 'Mora'      };
+    case 'proximo': return { badge: styles.badgeProximo, text: styles.badgeProximoText, label: 'Próximo'   };
+    default:        return { badge: styles.badgeAlDia,   text: styles.badgeAlDiaText,   label: 'Sin Deuda' };
   }
 };
 
@@ -42,23 +42,18 @@ const getSubtituloStyle = (tipo: string) => {
 
 const ClienteItem = ({ item, onPress }: { item: Cliente; onPress: () => void }) => {
   const badge = getBadgeStyle(item.estado, styles);
-
   return (
     <TouchableOpacity style={styles.clientCard} onPress={onPress} activeOpacity={0.75}>
-      {/* Avatar */}
       <View style={[styles.avatar, { backgroundColor: item.bgColor }]}>
         <Text style={styles.avatarText}>{item.initials}</Text>
       </View>
-
-      {/* Info */}
       <View style={styles.clientInfo}>
         <Text style={styles.clientName}>{item.nombre_completo}</Text>
         <Text style={[styles.clientSub, getSubtituloStyle(item.subtituloTipo)]}>
           {item.subtitulo}
         </Text>
       </View>
-
-      {/* Monto y badge */}
+      <View style={styles.activityDividerVertical} />
       <View style={styles.amountCol}>
         <Text style={styles.clientAmount}>{item.monto}</Text>
         <View style={[styles.badge, badge.badge]}>
@@ -70,17 +65,22 @@ const ClienteItem = ({ item, onPress }: { item: Cliente; onPress: () => void }) 
 };
 
 export default function ClientsScreen() {
+  const [token, setToken]     = useState<string | null>(null);
+  const [tendero, setTendero] = useState<any>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      AsyncStorage.getItem('token').then(t => setToken(t));
+      AsyncStorage.getItem('tendero').then(t => {
+        if (t) setTendero(JSON.parse(t));
+      });
+    }, [])
+  );
+
   const {
-    clientes,
-    busqueda,
-    setBusqueda,
-    filtroActivo,
-    loading,
-    total,
-    handleFiltro,
-    handleNuevoCliente,
-    handleClientePress,
-  } = useClients(TOKEN);
+    clientes, busqueda, setBusqueda, filtroActivo,
+    loading, total, handleFiltro, handleNuevoCliente, handleClientePress,
+  } = useClients(token);
 
   return (
     <>
@@ -90,21 +90,20 @@ export default function ClientsScreen() {
 
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn}>
-            <Text style={styles.backIcon}>←</Text>
-          </TouchableOpacity>
+          <View style={{ width: 40 }} />
           <Text style={styles.headerTitle}>Clientes</Text>
           <TouchableOpacity style={styles.bellBtn}>
-            <Text style={styles.bellIcon}>🔔</Text>
+            <Bell size={20} color={COLORS.primary} />
           </TouchableOpacity>
         </View>
 
         {/* Sub header */}
         <View style={styles.subHeader}>
-          <Text style={styles.subHeaderText}>☑ {total} Clientes Registrados</Text>
+          <BadgeCheck size={16} color={COLORS.white} />
+          <Text style={styles.subHeaderText}> {total} Clientes Registrados</Text>
         </View>
 
-        {/* Card */}
+        {/* Card blanca */}
         <View style={styles.card}>
 
           {/* Buscador */}
@@ -117,7 +116,7 @@ export default function ClientsScreen() {
               onChangeText={setBusqueda}
             />
             <TouchableOpacity style={styles.searchBtn}>
-              <Text style={styles.searchIcon}>🔍</Text>
+              <Search size={20} color={COLORS.white} />
             </TouchableOpacity>
           </View>
 
@@ -159,13 +158,13 @@ export default function ClientsScreen() {
               />
             )
           }
+
+          {/* Botón registrar dentro de la card */}
+          <TouchableOpacity style={styles.btnRegistrar} onPress={handleNuevoCliente}>
+            <Text style={styles.btnRegistrarText}>+ Registrar Nuevo Cliente</Text>
+          </TouchableOpacity>
+
         </View>
-
-        {/* Botón registrar */}
-        <TouchableOpacity style={styles.btnRegistrar} onPress={handleNuevoCliente}>
-          <Text style={styles.btnRegistrarText}>+ Registrar Nuevo Cliente</Text>
-        </TouchableOpacity>
-
       </SafeAreaView>
     </>
   );

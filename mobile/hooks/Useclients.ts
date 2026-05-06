@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { CONFIG } from '@/config/config';
 
-const API_URL = 'http://192.168.20.13:3000/api';
+const API_URL = CONFIG.API_URL;
+
 
 export type EstadoCliente = 'al_dia' | 'mora' | 'proximo' | 'sin_deuda';
 
@@ -24,49 +26,64 @@ const avatarColors = ['#4CAF50', '#FFC107', '#FF5252', '#2196F3', '#9C27B0', '#F
 
 const getAvatarColor = (id: number) => avatarColors[id % avatarColors.length];
 
-export const useClients = (token: string) => {
-  const [clientes, setClientes]         = useState<Cliente[]>([]);
-  const [filtrados, setFiltrados]       = useState<Cliente[]>([]);
-  const [busqueda, setBusqueda]         = useState('');
+export const useClients = (token: string | null) => {
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [filtrados, setFiltrados] = useState<Cliente[]>([]);
+  const [busqueda, setBusqueda] = useState('');
   const [filtroActivo, setFiltroActivo] = useState<Filtro>('todos');
-  const [loading, setLoading]           = useState(true);
-  const [total, setTotal]               = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [total, setTotal] = useState(0);
 
   useEffect(() => {
-    fetchClientes();
-  }, []);
+    if (token) {
+      fetchClientes();
+    }
+  }, [token]);
 
   useEffect(() => {
     aplicarFiltros();
   }, [busqueda, filtroActivo, clientes]);
 
-  const fetchClientes = async () => {
+    const fetchClientes = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/clients`, {
+      const res = await fetch(`${API_URL}/clientes`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json();
 
-      const mapped: Cliente[] = json.data.map((c: any) => ({
-        id_cliente:      c.id_cliente,
+      if (!res.ok) {
+        console.error('Error del servidor:', json.error || 'Desconocido');
+        return;
+      }
+
+      const dataArray = Array.isArray(json) ? json : (json.data && Array.isArray(json.data) ? json.data : null);
+
+      if (!dataArray) {
+        console.error('La respuesta no es un arreglo válido:', json);
+        return;
+      }
+
+      const mapped: Cliente[] = dataArray.map((c: any) => ({
+        id_cliente: c.id_cliente,
         nombre_completo: c.nombre_completo,
-        initials:        getInitials(c.nombre_completo),
-        bgColor:         getAvatarColor(c.id_cliente),
-        subtitulo:       c.subtitulo,
-        subtituloTipo:   c.subtitulo_tipo,
-        monto:           `$${Number(c.saldo_pendiente).toLocaleString('es-CO')},00`,
-        estado:          c.estado_credito,
+        initials: getInitials(c.nombre_completo),
+        bgColor: getAvatarColor(c.id_cliente),
+        subtitulo: c.total_deuda > 0 ? `Deuda: $${c.total_deuda.toLocaleString('es-CO')}` : 'Al día',
+        subtituloTipo: c.total_deuda > 0 ? 'mora' : 'normal',
+        monto: `$${Number(c.total_deuda).toLocaleString('es-CO')}`,
+        estado: c.total_deuda > 0 ? 'mora' : 'al_dia',
       }));
 
       setClientes(mapped);
       setTotal(mapped.length);
     } catch (err) {
-      console.error('Error cargando clientes:', err);
+      console.error('Error de conexión:', err);
     } finally {
       setLoading(false);
     }
   };
+
 
   const aplicarFiltros = () => {
     let resultado = [...clientes];
@@ -76,14 +93,14 @@ export const useClients = (token: string) => {
         c.nombre_completo.toLowerCase().includes(busqueda.toLowerCase())
       );
     }
-
-
+    
     if (filtroActivo !== 'todos') {
       resultado = resultado.filter(c => c.estado === filtroActivo);
     }
 
     setFiltrados(resultado);
   };
+  
 
   const handleFiltro = (filtro: Filtro) => setFiltroActivo(filtro);
 

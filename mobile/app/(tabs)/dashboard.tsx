@@ -25,9 +25,9 @@ const FILTROS_FECHA: { key: FiltroFecha; label: string }[] = [
 ];
 
 export default function HomeScreen() {
-  const [token, setToken]     = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [tendero, setTendero] = useState<any>(null);
-  const searchAnim            = useRef(new Animated.Value(0)).current;
+  const searchAnim = useRef(new Animated.Value(0)).current;
 
 useFocusEffect(
   useCallback(() => {

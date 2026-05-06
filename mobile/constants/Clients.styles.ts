@@ -6,6 +6,7 @@ export const clientStyles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.primary,
   },
+
   // Header
   header: {
     flexDirection: 'row',
@@ -20,15 +21,15 @@ export const clientStyles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.white,
   },
-  backBtn: {
-    padding: 4,
-  },
-  backIcon: {
-    fontSize: 20,
-    color: COLORS.white,
-  },
   bellBtn: {
-    padding: 4,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.white,
   },
   bellIcon: {
     fontSize: 20,
@@ -46,6 +47,7 @@ export const clientStyles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
   },
+
   // Card principal
   card: {
     flex: 1,
@@ -54,7 +56,9 @@ export const clientStyles = StyleSheet.create({
     borderTopRightRadius: 36,
     paddingHorizontal: 20,
     paddingTop: 24,
+    paddingBottom: 24,
   },
+
   // Buscador
   searchRow: {
     flexDirection: 'row',
@@ -84,6 +88,7 @@ export const clientStyles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 16,
   },
+
   // Filtros
   filtersRow: {
     flexDirection: 'row',
@@ -91,7 +96,7 @@ export const clientStyles = StyleSheet.create({
     marginBottom: 20,
   },
   filterBtn: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 50,
     borderWidth: 1.5,
@@ -103,16 +108,17 @@ export const clientStyles = StyleSheet.create({
     borderColor: COLORS.primary,
   },
   filterText: {
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.text,
     fontWeight: '500',
   },
   filterTextActive: {
     color: COLORS.white,
   },
+
   // Lista
   listContent: {
-    paddingBottom: 100,
+    paddingBottom: 80,
   },
   clientCard: {
     backgroundColor: COLORS.white,
@@ -144,7 +150,7 @@ export const clientStyles = StyleSheet.create({
     flex: 1,
   },
   clientName: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: COLORS.text,
     marginBottom: 2,
@@ -160,15 +166,22 @@ export const clientStyles = StyleSheet.create({
   clientSubProximo: {
     color: '#FFA000',
   },
+  activityDividerVertical: {
+    width: 1,
+    height: 36,
+    backgroundColor: COLORS.border,
+    marginHorizontal: 10,
+  },
   amountCol: {
     alignItems: 'flex-end',
     gap: 6,
   },
   clientAmount: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: COLORS.text,
   },
+
   // Badges
   badge: {
     paddingHorizontal: 10,
@@ -197,18 +210,14 @@ export const clientStyles = StyleSheet.create({
   badgeProximoText: {
     color: '#FFA000',
   },
+
   // Botón registrar
   btnRegistrar: {
     backgroundColor: COLORS.primary,
     borderRadius: 50,
     paddingVertical: 16,
     alignItems: 'center',
-    marginHorizontal: 20,
-    marginBottom: 20,
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    marginTop: 8,
   },
   btnRegistrarText: {
     color: COLORS.white,
