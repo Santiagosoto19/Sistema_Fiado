@@ -27,7 +27,7 @@ router.get('/', async (req, res) => {
     // Conteo de clientes
     const clientesCount = await pool.query(`
       SELECT COUNT(*) as total_clientes,
-             COUNT(CASE WHEN estado = 'sin_deuda' THEN 1 END) as clientes_sin_deuda
+            COUNT(CASE WHEN c.estado = 'sin_deuda' THEN 1 END) as clientes_sin_deuda
       FROM clientes c
       JOIN tendero_cliente tc ON c.id_cliente = tc.id_cliente
       WHERE tc.id_tendero = $1 AND tc.estado = 'activo'
@@ -42,15 +42,21 @@ router.get('/', async (req, res) => {
     `, [idTendero]);
 
     // Últimos 3 movimientos (abonos recientes)
-    const movimientos = await pool.query(`
-      SELECT a.id_abono, a.monto, a.fecha_abono, c.nombre_completo, cr.monto_total, cr.saldo_pendiente
-      FROM abonos a
-      JOIN clientes c ON a.id_cliente = c.id_cliente
-      JOIN creditos cr ON a.id_credito = cr.id_credito
-      WHERE cr.id_tendero = $1
-      ORDER BY a.fecha_abono DESC
-      LIMIT 3
-    `, [idTendero]);
+const movimientos = await pool.query(`
+SELECT
+  a.id_abono,
+  a.monto,
+  a.fecha_abono,
+  c.nombre_completo,
+  cr.monto_total,
+  cr.saldo_pendiente
+  FROM abonos a
+  JOIN clientes c ON a.id_cliente = c.id_cliente
+  JOIN creditos cr ON a.id_credito = cr.id_credito
+  WHERE cr.id_tendero = $1
+  ORDER BY a.fecha_abono DESC
+  LIMIT 3
+`, [idTendero]);
 
     res.json({
       cartera_total: parseFloat(carteraResult.rows[0].cartera_total) || 0,
@@ -65,7 +71,8 @@ router.get('/', async (req, res) => {
         fecha: m.fecha_abono,
         cliente: m.nombre_completo,
         credito_monto: parseFloat(m.monto_total),
-        saldo_pendiente: parseFloat(m.saldo_pendiente)
+        saldo_pendiente: parseFloat(m.saldo_pendiente),
+        tipo: m.tipo
       }))
     });
   } catch (err) {

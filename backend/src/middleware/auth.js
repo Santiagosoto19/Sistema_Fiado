@@ -17,7 +17,7 @@ async function authMiddleware(req, res, next) {
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
     const result = await pool.query(
-      'SELECT * FROM sesiones WHERE token_hash = $1 AND revoke = false AND expires_at > NOW()',
+      'SELECT * FROM sesiones WHERE token_hash = $1 AND revocado = false AND expires_at > NOW()',
       [tokenHash]
     );
 
