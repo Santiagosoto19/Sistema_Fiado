@@ -88,7 +88,7 @@ export const useLogin = () => {
   };
 
   const handleRegister = () => {
-      router.push('/(auth)/registerClientes');
+    // TODO: router.push('/auth/register');
   };
 
   const handleGoogleLogin = () => {
