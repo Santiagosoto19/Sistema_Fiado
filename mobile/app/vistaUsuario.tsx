@@ -200,9 +200,6 @@ const API_TOKEN = process.env.EXPO_PUBLIC_API_TOKEN || '';
               ))}
             </View>
           </View>
-
-/* Buenas Noches.*/
-
           {/* CTA */}
           <TouchableOpacity
             style={[styles.ctaButton, { backgroundColor: palette.primary }]}

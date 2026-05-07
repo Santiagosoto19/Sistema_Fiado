@@ -3,28 +3,35 @@ import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function Index() {
-  const [isLogged, setIsLogged] = useState<boolean | null>(null);
+  const [target, setTarget] = useState<string | null>(null);
 
   useEffect(() => {
     const checkLogin = async () => {
-      
-      await AsyncStorage.clear();
+      const token = await AsyncStorage.getItem('token');
 
+      if (!token) {
+        setTarget('/login');
+        return;
+      }
 
-      const token = await AsyncStorage.getItem('token'); // 👈 AQUÍ
-      console.log('TOKEN:', token); // 👈 Y AQUÍ
+      const tenderoRaw = await AsyncStorage.getItem('tendero');
+      if (!tenderoRaw) {
+        setTarget('/vistaUsuario');
+        return;
+      }
 
-      setIsLogged(!!token);
+      try {
+        const tendero = JSON.parse(tenderoRaw);
+        setTarget(tendero ? '/(tabs)/dashboard' : '/vistaUsuario');
+      } catch {
+        setTarget('/vistaUsuario');
+      }
     };
 
     checkLogin();
   }, []);
 
-  if (isLogged === null) return null;
+  if (target === null) return null;
 
-  return isLogged ? (
-    <Redirect href="/(tabs)/dashboard" />
-  ) : (
-     <Redirect href="/login" />
-  );
+  return <Redirect href={target as any} />;
 }

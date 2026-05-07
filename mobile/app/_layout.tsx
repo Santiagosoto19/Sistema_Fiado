@@ -1,10 +1,11 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useRootNavigationState, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import 'react-native-reanimated';
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Poppins_400Regular,
   Poppins_600SemiBold,
@@ -27,6 +28,10 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   useSessionTimeout();
   const colorScheme = useColorScheme();
+  const router = useRouter();
+  const segments = useSegments();
+  const navigationState = useRootNavigationState();
+  const [authChecked, setAuthChecked] = useState(false);
   const [fontsLoaded] = useFonts({
     Poppins_400Regular,
     Poppins_600SemiBold,
@@ -41,7 +46,57 @@ export default function RootLayout() {
     }
   }, [fontsLoaded]);
 
-  if (!fontsLoaded) return null;
+  const segmentKey = useMemo(() => segments.join('/'), [segments]);
+  const segment0 = segments[0];
+
+  useEffect(() => {
+    if (!navigationState?.key) return;
+
+    let cancelled = false;
+
+    const run = async () => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+
+        const inAuthGroup = segment0 === '(auth)';
+        const inTabsGroup = segment0 === '(tabs)';
+        const inVistaUsuario = segment0 === 'vistaUsuario';
+        const isProtected = inTabsGroup || inVistaUsuario;
+
+        if (!token && isProtected) {
+          router.replace('/login' as any);
+          return;
+        }
+
+        if (token && inAuthGroup) {
+          const tenderoRaw = await AsyncStorage.getItem('tendero');
+          let target: string = '/vistaUsuario';
+
+          if (tenderoRaw) {
+            try {
+              const tendero = JSON.parse(tenderoRaw);
+              target = tendero ? '/(tabs)/dashboard' : '/vistaUsuario';
+            } catch {
+              target = '/vistaUsuario';
+            }
+          }
+
+          router.replace(target as any);
+          return;
+        }
+      } finally {
+        if (!cancelled) setAuthChecked(true);
+      }
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [navigationState?.key, router, segment0, segmentKey]);
+
+  if (!fontsLoaded || !authChecked) return null;
 
 return (
     <SafeAreaProvider>

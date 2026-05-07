@@ -58,14 +58,18 @@ export const useLogin = () => {
         throw new Error(err.error || 'No se pudo iniciar sesión');
       }
 
+      // 1) Guardar sesión
+      await AsyncStorage.setItem('token', json.token);
+      await AsyncStorage.setItem('usuario', JSON.stringify(json.usuario));
 
-    await AsyncStorage.removeItem('token');
-    await AsyncStorage.removeItem('tendero');
-
-    await AsyncStorage.setItem('token', json.token);
-    await AsyncStorage.setItem('tendero', JSON.stringify(json.tendero));
-    
-    router.replace('/(tabs)/dashboard' as any);
+      // 2) Guardar tendero (si aplica) + lógica de redirección
+      if (json.tendero) {
+        await AsyncStorage.setItem('tendero', JSON.stringify(json.tendero));
+        router.replace('/(tabs)/dashboard' as any);
+      } else {
+        await AsyncStorage.removeItem('tendero');
+        router.replace('/vistaUsuario' as any);
+      }
 
 
       const nombre = json.tendero?.nombre ?? json.usuario.email;
