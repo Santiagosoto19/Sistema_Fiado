@@ -68,7 +68,7 @@ export const useLogin = () => {
         router.replace('/(tabs)/dashboard' as any);
       } else {
         await AsyncStorage.removeItem('tendero');
-        router.replace('/vistaUsuario' as any);
+        router.replace('/(tabs)/vistaUsuario' as any);
       }
 
 

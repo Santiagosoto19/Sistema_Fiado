@@ -69,18 +69,26 @@ export default function RootLayout() {
         }
 
         if (token && inAuthGroup) {
-          const tenderoRaw = await AsyncStorage.getItem('tendero');
-          let target: string = '/vistaUsuario';
+          const [tenderoRaw, usuarioRaw] = await Promise.all([
+            AsyncStorage.getItem('tendero'),
+            AsyncStorage.getItem('usuario')
+          ]);
+          
+          let isTendero = false;
 
-          if (tenderoRaw) {
+          // 1. Verificar por objeto tendero
+          if (tenderoRaw && tenderoRaw !== 'null') {
+            isTendero = true;
+          } 
+          // 2. Verificar por id_rol en el usuario
+          else if (usuarioRaw) {
             try {
-              const tendero = JSON.parse(tenderoRaw);
-              target = tendero ? '/(tabs)/dashboard' : '/vistaUsuario';
-            } catch {
-              target = '/vistaUsuario';
-            }
+              const user = JSON.parse(usuarioRaw);
+              if (user.id_rol == 1) isTendero = true;
+            } catch {}
           }
 
+          const target = isTendero ? '/(tabs)/dashboard' : '/(tabs)/vistaUsuario';
           router.replace(target as any);
           return;
         }

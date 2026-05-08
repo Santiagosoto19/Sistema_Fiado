@@ -17,11 +17,12 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { AppFonts, Colors } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import axios from 'axios';
+import { CONFIG } from '@/config/config';
 
 // Configuración de la API
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ||
-  (Platform.OS === 'android' ? 'http://10.0.2.2:3000/api' : 'http://localhost:3000/api');
+  (Platform.OS === 'android' ? 'http://192.168.20.13/api' : 'http://localhost:3000/api');
 const API_TOKEN = process.env.EXPO_PUBLIC_API_TOKEN || '';
 
   const VistaUsuario = () => {
@@ -125,25 +126,6 @@ const API_TOKEN = process.env.EXPO_PUBLIC_API_TOKEN || '';
     <SafeAreaView style={[styles.container, { backgroundColor: palette.surface }]}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Header - Design and Colors from index.tsx */}
-      <View style={[styles.header, { backgroundColor: palette.primary, paddingTop: insets.top }]}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => {}}
-          hitSlop={10}
-          style={styles.headerIconButton}>
-          <MaterialIcons name="chevron-left" size={28} color={palette.text} />
-        </Pressable>
-        <Text style={[styles.headerTitle, { color: palette.text }]}>Hola, {userData?.nombreUsuario}</Text>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => {}}
-          hitSlop={10}
-          style={styles.headerIconButton}>
-          <MaterialIcons name="notifications-none" size={24} color={palette.text} />
-        </Pressable>
-      </View>
-
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -210,21 +192,6 @@ const API_TOKEN = process.env.EXPO_PUBLIC_API_TOKEN || '';
         </View>
       </ScrollView>
 
-      {/* Bottom Navigation Bar - UI Spec 3-icons with index.tsx colors */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="home" size={24} color={palette.primary} />
-          <Text style={[styles.navText, { color: palette.primary, fontFamily: AppFonts.bold }]}>Inicio</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="person-outline" size={24} color="#9E9E9E" />
-          <Text style={[styles.navText, { color: '#9E9E9E', fontFamily: AppFonts.regular }]}>Perfil</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="notifications-outline" size={24} color="#9E9E9E" />
-          <Text style={[styles.navText, { color: '#9E9E9E', fontFamily: AppFonts.regular }]}>Alertas</Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 };

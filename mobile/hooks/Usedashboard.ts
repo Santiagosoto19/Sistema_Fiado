@@ -101,9 +101,9 @@ export const useDashboard = (token: string) => {
     }
  
     return movs.map((m, idx) => ({
-      initials:     getInitials(m.cliente),
-      name:         m.cliente,
-      bgColor:      getAvatarColor(idx),
+      initials: getInitials(m.cliente),
+      name: m.cliente,
+      bgColor: getAvatarColor(idx),
       subtitle: m.tipo === 'vencido' ? 'Vencido Hace 3 Días' : 'Pago Recibido Hoy',
 
       subtitleMora: m.tipo === 'vencido',

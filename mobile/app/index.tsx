@@ -16,15 +16,15 @@ export default function Index() {
 
       const tenderoRaw = await AsyncStorage.getItem('tendero');
       if (!tenderoRaw) {
-        setTarget('/vistaUsuario');
+        setTarget('/(tabs)/vistaUsuario');
         return;
       }
 
       try {
         const tendero = JSON.parse(tenderoRaw);
-        setTarget(tendero ? '/(tabs)/dashboard' : '/vistaUsuario');
+        setTarget(tendero ? '/(tabs)/dashboard' : '/(tabs)/vistaUsuario');
       } catch {
-        setTarget('/vistaUsuario');
+        setTarget('/(tabs)/vistaUsuario');
       }
     };
 
