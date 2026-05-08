@@ -20,7 +20,7 @@ export default function ProfileScreen() {
         { 
           text: "Sí, salir", 
           onPress: async () => {
-            await AsyncStorage.multiRemove(['token', 'user', 'lastActive']);
+            await AsyncStorage.multiRemove(['token', 'usuario', 'tendero', 'lastActive']);
             router.replace('/login');
           },
           style: 'destructive'
