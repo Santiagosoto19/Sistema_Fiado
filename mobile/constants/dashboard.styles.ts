@@ -273,8 +273,8 @@ export const dashboardStyles = StyleSheet.create({
     marginRight: 8,
   },
   filterBtnActive: {
-    backgroundColor: '#3EBF7A',
-    borderColor: '#3EBF7A',
+    backgroundColor: '#00D09E',
+    borderColor: '#00D09E',
   },
   filterText: {
     fontSize: 12,

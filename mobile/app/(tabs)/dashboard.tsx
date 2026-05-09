@@ -100,7 +100,7 @@ useFocusEffect(
                 <Text style={styles.totalSub}>Actualizado Hoy</Text>
               </View>
               <View style={styles.totalIcon}>
-                <Text style={{ fontSize: 42 }}><BanknoteArrowUp size={40} color="green" /></Text>
+                <Text style={{ fontSize: 42 }}><BanknoteArrowUp size={40} color="#00D09E" /></Text>
               </View>
             </View>
 
