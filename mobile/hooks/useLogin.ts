@@ -72,7 +72,19 @@ export const useLogin = () => {
       }
 
 
-      const nombre = json.tendero?.nombre ?? json.usuario.email;
+      let nombre = json.tendero?.nombre;
+      if (!nombre) {
+        try {
+          const meRes = await fetch(`${API_URL}/clientes/me`, {
+            headers: { Authorization: `Bearer ${json.token}` },
+          });
+          if (meRes.ok) {
+            const meData = await meRes.json();
+            nombre = meData.nombre_completo;
+          }
+        } catch {}
+      }
+      if (!nombre) nombre = json.usuario.email;
       Alert.alert('¡Bienvenido!', `Hola ${nombre} 👋`);
 
     } catch (err: any) {

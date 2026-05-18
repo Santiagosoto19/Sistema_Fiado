@@ -55,6 +55,77 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/clientes/me (cliente logueado) — DEBE ir antes de /:id
+router.get('/me', async (req, res) => {
+  try {
+    const idUsuario = req.user.id_usuario;
+
+    const cliente = await pool.query(`
+      SELECT c.*, tc.estado as relacion_estado, tc.id_tendero
+      FROM clientes c
+      JOIN tendero_cliente tc ON c.id_cliente = tc.id_cliente
+      WHERE c.id_usuario = $1
+    `, [idUsuario]);
+
+    if (cliente.rows.length === 0) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+
+    const idCliente = cliente.rows[0].id_cliente;
+    const idTendero = cliente.rows[0].id_tendero;
+
+    const totales = await pool.query(`
+      SELECT COALESCE(SUM(saldo_pendiente), 0) as total_deuda,
+             COUNT(*) as total_creditos,
+             COUNT(CASE WHEN estado = 'vencido' THEN 1 END) as creditos_vencidos
+      FROM creditos WHERE id_cliente = $1 AND id_tendero = $2
+    `, [idCliente, idTendero]);
+
+    const scoring = await pool.query(`
+      SELECT * FROM scoring WHERE id_cliente = $1 ORDER BY fecha_calculo DESC LIMIT 1
+    `, [idCliente]);
+
+    const tiendaResult = await pool.query(`
+      SELECT t.nombre, t.nombre_tienda, t.telefono, t.direccion
+      FROM tenderos t
+      JOIN tendero_cliente tc ON t.id_tendero = tc.id_tendero
+      WHERE tc.id_cliente = $1 AND tc.estado = 'activo'
+      LIMIT 1
+    `, [idCliente]);
+
+    const tienda = tiendaResult.rows[0] || null;
+
+    res.json({
+      id_cliente: idCliente,
+      nombre_completo: cliente.rows[0].nombre_completo,
+      telefono: cliente.rows[0].telefono,
+      direccion: cliente.rows[0].direccion,
+      estado: cliente.rows[0].estado,
+      created_at: cliente.rows[0].created_at,
+      tienda: tienda ? {
+        nombre_tendero: tienda.nombre,
+        nombre_tienda: tienda.nombre_tienda,
+        telefono: tienda.telefono,
+        direccion: tienda.direccion
+      } : null,
+      scoring: scoring.rows[0] ? {
+        puntaje: scoring.rows[0].puntaje,
+        nivel_riesgo: scoring.rows[0].nivel_riesgo,
+        limite_sugerido: parseFloat(scoring.rows[0].limite_sugerido),
+        fecha_calculo: scoring.rows[0].fecha_calculo
+      } : null,
+      totales: {
+        total_deuda: parseFloat(totales.rows[0].total_deuda) || 0,
+        total_creditos: parseInt(totales.rows[0].total_creditos) || 0,
+        creditos_vencidos: parseInt(totales.rows[0].creditos_vencidos) || 0
+      }
+    });
+  } catch (err) {
+    console.error('Error en obtener cliente logueado:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // GET /api/clientes/:id
 router.get('/:id', async (req, res) => {
   try {
@@ -83,6 +154,16 @@ router.get('/:id', async (req, res) => {
       SELECT * FROM scoring WHERE id_cliente = $1 ORDER BY fecha_calculo DESC LIMIT 1
     `, [id]);
 
+    const tiendaResult = await pool.query(`
+      SELECT t.nombre, t.nombre_tienda, t.telefono, t.direccion
+      FROM tenderos t
+      JOIN tendero_cliente tc ON t.id_tendero = tc.id_tendero
+      WHERE tc.id_cliente = $1 AND tc.estado = 'activo'
+      LIMIT 1
+    `, [id]);
+
+    const tienda = tiendaResult.rows[0] || null;
+
     res.json({
       id_cliente: cliente.rows[0].id_cliente,
       nombre_completo: cliente.rows[0].nombre_completo,
@@ -90,6 +171,12 @@ router.get('/:id', async (req, res) => {
       direccion: cliente.rows[0].direccion,
       estado: cliente.rows[0].estado,
       created_at: cliente.rows[0].created_at,
+      tienda: tienda ? {
+        nombre_tendero: tienda.nombre,
+        nombre_tienda: tienda.nombre_tienda,
+        telefono: tienda.telefono,
+        direccion: tienda.direccion
+      } : null,
       scoring: scoring.rows[0] ? {
         puntaje: scoring.rows[0].puntaje,
         nivel_riesgo: scoring.rows[0].nivel_riesgo,
@@ -219,13 +306,32 @@ router.get('/:id/historial', async (req, res) => {
   try {
     const { id } = req.params;
     const idTendero = req.user.id_tendero;
+    const idUsuario = req.user.id_usuario;
 
-    const verifica = await pool.query(`
-      SELECT 1 FROM tendero_cliente WHERE id_tendero = $1 AND id_cliente = $2 AND estado = 'activo'
-    `, [idTendero, id]);
+    let tieneAcceso = false;
 
-    if (verifica.rows.length === 0) {
+    if (idTendero) {
+      const verifica = await pool.query(`
+        SELECT 1 FROM tendero_cliente WHERE id_tendero = $1 AND id_cliente = $2 AND estado = 'activo'
+      `, [idTendero, id]);
+      tieneAcceso = verifica.rows.length > 0;
+    } else if (idUsuario) {
+      const verifica = await pool.query(`
+        SELECT 1 FROM clientes WHERE id_usuario = $1 AND id_cliente = $2
+      `, [idUsuario, id]);
+      tieneAcceso = verifica.rows.length > 0;
+    }
+
+    if (!tieneAcceso) {
       return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+
+    let resolvedTendero = idTendero;
+    if (!resolvedTendero) {
+      const tcResult = await pool.query(`
+        SELECT id_tendero FROM tendero_cliente WHERE id_cliente = $1 AND estado = 'activo' LIMIT 1
+      `, [id]);
+      resolvedTendero = tcResult.rows[0]?.id_tendero || null;
     }
 
     const creditos = await pool.query(`
@@ -234,7 +340,7 @@ router.get('/:id/historial', async (req, res) => {
       FROM creditos c
       WHERE c.id_cliente = $1 AND c.id_tendero = $2
       ORDER BY c.fecha_credito DESC
-    `, [id, idTendero]);
+    `, [id, resolvedTendero]);
 
     const historial = [];
 

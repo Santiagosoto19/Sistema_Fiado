@@ -1,37 +1,60 @@
 import { StyleSheet } from 'react-native';
-import { Colors, AppFonts } from '@/constants/theme';
+import { COLORS } from '@/constants/colors';
+import { AppFonts } from '@/constants/theme';
 
-const p = Colors.light.palette;
+const p = COLORS;
 
 export const vistaUsuarioStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: p.surface,
+    backgroundColor: p.primary,
   },
   center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: p.surface,
+    backgroundColor: p.primary,
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 20,
+  },
+  welcomeText: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: p.white,
+  },
+  welcomeSub: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
+  },
+  card: {
+    flex: 1,
+    backgroundColor: p.white,
+    borderTopLeftRadius: 36,
+    borderTopRightRadius: 36,
+    paddingTop: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
   },
   scroll: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 14,
-    paddingTop: 12,
     paddingBottom: 100,
   },
   debtCard: {
-    backgroundColor: p.card,
-    borderRadius: 28,
-    paddingHorizontal: 18,
-    paddingVertical: 18,
+    backgroundColor: p.white,
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   cardTop: {
     alignItems: 'center',
@@ -53,18 +76,18 @@ export const vistaUsuarioStyles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: p.successSoft2,
+    backgroundColor: p.border,
   },
   totalLabel: {
     fontSize: 12,
     fontFamily: AppFonts.semiBold,
-    color: p.textMuted,
+    color: p.primary,
   },
   debtAmount: {
-    fontSize: 28,
+    fontSize: 30,
     fontFamily: AppFonts.black,
     marginTop: 2,
-    color: p.text,
+    color: p.primary,
   },
   debtDate: {
     fontSize: 11,
@@ -95,15 +118,15 @@ export const vistaUsuarioStyles = StyleSheet.create({
   progressPillText: {
     fontSize: 11,
     fontFamily: AppFonts.black,
-    color: p.text,
+    color: p.white,
   },
   progressTrack: {
     height: 16,
     borderRadius: 999,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    backgroundColor: p.track,
+    borderColor: p.border,
+    backgroundColor: p.inputBg,
   },
   progressFillBase: {
     height: '100%',
@@ -116,7 +139,7 @@ export const vistaUsuarioStyles = StyleSheet.create({
     height: '100%',
     width: '100%',
     borderRadius: 999,
-    backgroundColor: p.successSoft2,
+    backgroundColor: p.border,
   },
   confidenceBadge: {
     alignSelf: 'center',
@@ -126,8 +149,8 @@ export const vistaUsuarioStyles = StyleSheet.create({
     borderRadius: 999,
     fontSize: 12,
     fontFamily: AppFonts.extraBold,
-    backgroundColor: p.successSoft2,
-    color: p.text,
+    backgroundColor: p.primary,
+    color: p.white,
   },
   motivationalText: {
     marginTop: 6,
@@ -147,36 +170,36 @@ export const vistaUsuarioStyles = StyleSheet.create({
     gap: 12,
   },
   iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 999,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 12,
   },
   iconText: {
     fontSize: 18,
     fontFamily: AppFonts.black,
-    color: p.text,
+    color: p.white,
   },
   movementTextColumn: {
     flex: 1,
   },
   movementDesc: {
-    fontSize: 13,
-    fontFamily: AppFonts.semiBold,
+    fontSize: 14,
+    fontWeight: '600',
     color: p.text,
+    marginBottom: 2,
   },
   movementDate: {
-    fontSize: 10,
+    fontSize: 12,
     fontFamily: AppFonts.regular,
-    marginTop: 2,
     color: p.textMuted,
   },
   movementAmount: {
-    fontSize: 12,
-    fontFamily: AppFonts.semiBold,
+    fontSize: 14,
+    fontWeight: '700',
     textAlign: 'right',
-    color: p.text,
   },
   ctaButton: {
     marginTop: 18,
@@ -189,6 +212,6 @@ export const vistaUsuarioStyles = StyleSheet.create({
   ctaButtonText: {
     fontSize: 12,
     fontFamily: AppFonts.extraBold,
-    color: p.text,
+    color: p.white,
   },
 });
