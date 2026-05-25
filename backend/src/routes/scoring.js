@@ -1,9 +1,45 @@
 const express = require('express');
+const http = require('http');
 const pool = require('../config/database');
 const authMiddleware = require('../middleware/auth');
+const { triggerMLRetrain } = require('../utils/mlTrigger');
 
 const router = express.Router();
 router.use(authMiddleware);
+
+function callMLService(clienteId) {
+  return new Promise((resolve, reject) => {
+    const postData = JSON.stringify({ id_cliente: parseInt(clienteId) });
+    const options = {
+      hostname: 'localhost',
+      port: 8000,
+      path: '/predict',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+      },
+    };
+
+    const req = http.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          if (json.error) return reject(new Error(json.error));
+          resolve(json);
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.write(postData);
+    req.end();
+  });
+}
 
 // GET /api/scoring/:clienteId
 router.get('/:clienteId', async (req, res) => {
@@ -169,6 +205,7 @@ router.post('/:clienteId/calcular', async (req, res) => {
                            pts_frecuencia, pts_antiguedad, limite_sugerido)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       `, [clienteId, puntajeTotal, nivelRiesgo, ptsPuntualidad, ptsHistorial, ptsFrecuencia, ptsAntiguedad, limiteSugerido]);
+      triggerMLRetrain('scoring_nuevo').catch(() => {});
     }
 
     res.json({
@@ -231,6 +268,13 @@ router.get('/:clienteId/recomendacion', async (req, res) => {
       mensaje = `Con solo ${s.puntaje} puntos y nivel de riesgo ${s.nivel_riesgo}, el cliente presenta alto riesgo de mora. No se recomienda aprobar nuevos créditos en este momento.`;
     }
 
+    let rf = null;
+    try {
+      rf = await callMLService(clienteId);
+    } catch (mlErr) {
+      console.error('Error llamando al servicio ML:', mlErr.message);
+    }
+
     res.json({
       id_cliente: parseInt(clienteId),
       recomendacion,
@@ -239,7 +283,8 @@ router.get('/:clienteId/recomendacion', async (req, res) => {
         puntaje: s.puntaje,
         nivel_riesgo: s.nivel_riesgo,
         limite_sugerido: parseFloat(s.limite_sugerido)
-      }
+      },
+      random_forest: rf
     });
   } catch (err) {
     console.error('Error en recomendación:', err);

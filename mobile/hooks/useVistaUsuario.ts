@@ -58,7 +58,7 @@ export const useVistaUsuario = (token: string | null) => {
       const user = await meRes.json();
 
       const puntaje = user.scoring?.puntaje ?? 0;
-      const nivelConfianza = Math.min(Math.round((puntaje / 1000) * 100), 100);
+      const nivelConfianza = Math.min(Math.round((puntaje / 100) * 100), 100);
 
       let nivelConfianzaLabel = 'Cliente en riesgo';
       if (nivelConfianza >= 70) {

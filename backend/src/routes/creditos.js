@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../config/database');
 const authMiddleware = require('../middleware/auth');
+const { triggerMLRetrain } = require('../utils/mlTrigger');
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -73,6 +74,10 @@ router.get('/:id', async (req, res) => {
     const diasAtraso = c.estado === 'vencido'
       ? Math.max(0, Math.floor((new Date() - new Date(c.fecha_limite_pago)) / (1000 * 60 * 60 * 24)))
       : 0;
+
+    if (c.estado === 'vencido' && diasAtraso > 30) {
+      triggerMLRetrain('credito_mora_30').catch(() => {});
+    }
 
     const abonos = await pool.query(`
       SELECT id_abono, monto, fecha_abono, created_at
@@ -263,6 +268,10 @@ router.post('/:creditoId/abonos', async (req, res) => {
         `, [saldoFinal, nuevoEstado, creditoId]);
 
         await client.query('COMMIT');
+
+        if (nuevoEstado === 'pagado') {
+          triggerMLRetrain('credito_pagado').catch(() => {});
+        }
 
         res.status(201).json({
           message: 'Abono registrado correctamente',
