@@ -4,8 +4,6 @@ import { CONFIG } from '@/config/config';
 
 const API_URL = CONFIG.API_URL;
 
-const avatarColors = ['#4CAF50', '#FFC107', '#FF5252', '#2196F3', '#9C27B0'];
-
 export type Movimiento = {
   id: string;
   tipo: 'CARGO' | 'ABONO';
@@ -13,14 +11,7 @@ export type Movimiento = {
   fecha: string;
   monto: number;
   bgColor: string;
-  amountColor: string;
-};
-
-export type Tienda = {
-  nombre_tendero: string;
-  nombre_tienda: string;
-  telefono: string;
-  direccion: string;
+  signColor: string;
 };
 
 export type UserData = {
@@ -31,6 +22,7 @@ export type UserData = {
   fechaLimite: string;
   nivelConfianza: number;
   nivelConfianzaLabel: string;
+  nivelConfianzaColor: string;
   telefonoTienda: string;
 };
 
@@ -58,13 +50,16 @@ export const useVistaUsuario = (token: string | null) => {
       const user = await meRes.json();
 
       const puntaje = user.scoring?.puntaje ?? 0;
-      const nivelConfianza = Math.min(Math.round((puntaje / 100) * 100), 100);
+      const nivelConfianza = Math.min(Math.round(puntaje), 100);
 
-      let nivelConfianzaLabel = 'Cliente en riesgo';
-      if (nivelConfianza >= 70) {
+      let nivelConfianzaLabel = 'Mejora Tus Pagos';
+      let nivelConfianzaColor = '#EF5350';
+      if (nivelConfianza >= 80) {
         nivelConfianzaLabel = '¡Excelente Cliente!';
-      } else if (nivelConfianza >= 40) {
-        nivelConfianzaLabel = 'Cliente normal';
+        nivelConfianzaColor = '#00C48C';
+      } else if (nivelConfianza >= 50) {
+        nivelConfianzaLabel = 'Buen Cliente';
+        nivelConfianzaColor = '#FFA726';
       }
 
       let telefonoTienda = user.tienda?.telefono || '';
@@ -77,10 +72,11 @@ export const useVistaUsuario = (token: string | null) => {
         id_cliente: user.id_cliente,
         nombreUsuario: user.nombre_completo,
         nombreTienda: user.tienda?.nombre_tienda || 'Sin tienda asociada',
-        totalDeuda: user.totales?.total_deuda ?? 0,
+        totalDeuda: 0,
         fechaLimite: 'Sujeto a crédito',
         nivelConfianza,
         nivelConfianzaLabel,
+        nivelConfianzaColor,
         telefonoTienda,
       });
 
@@ -96,26 +92,37 @@ export const useVistaUsuario = (token: string | null) => {
         }
         const history = await historyRes.json();
 
+        // Fecha límite del crédito más reciente (vigente o vencido)
+        const creditoMasReciente = history.historial?.find((item: any) =>
+          item.credito.estado === 'vigente' || item.credito.estado === 'vencido'
+        );
+        const fechaLimite = creditoMasReciente?.credito.fecha_limite_pago?.split('T')[0] ?? '';
+
         const processedMovements: Movimiento[] = [];
         history.historial?.forEach((item: any) => {
+          // Mostrar créditos vigentes y vencidos
+          if (item.credito.estado !== 'vigente' && item.credito.estado !== 'vencido') return;
+
+          const fechaCredito = item.credito.fecha_credito?.split('T')[0] ?? '';
           processedMovements.push({
             id: `cred-${item.credito.id_credito}`,
             tipo: 'CARGO',
             descripcion: item.credito.descripcion || 'Compra en Tienda',
-            fecha: item.credito.fecha_credito,
+            fecha: fechaCredito,
             monto: item.credito.monto_total,
-            bgColor: avatarColors[processedMovements.length % avatarColors.length],
-            amountColor: '#FF5252',
+            bgColor: '#FFCDD2',
+            signColor: '#E53935',
           });
           item.abonos?.forEach((abono: any) => {
+            const fechaAbono = abono.fecha_abono?.split('T')[0] ?? '';
             processedMovements.push({
               id: `abono-${abono.id_abono}`,
               tipo: 'ABONO',
               descripcion: `Abono a ${item.credito.descripcion || 'Crédito'}`,
-              fecha: abono.fecha_abono,
+              fecha: fechaAbono,
               monto: abono.monto,
-              bgColor: avatarColors[processedMovements.length % avatarColors.length],
-              amountColor: '#3EBF7A',
+              bgColor: '#FFE0B2',
+              signColor: '#FF9800',
             });
           });
         });
@@ -123,6 +130,15 @@ export const useVistaUsuario = (token: string | null) => {
         const sortedMovements = processedMovements
           .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
 
+        // Calcular total a pagar sumando saldos pendientes de créditos vigentes y vencidos
+        const totalDeudaCalculada = history.historial?.reduce((acc: number, item: any) => {
+          if (item.credito.estado === 'vigente' || item.credito.estado === 'vencido') {
+            return acc + (item.credito.saldo_pendiente ?? 0);
+          }
+          return acc;
+        }, 0) ?? 0;
+
+        setUserData(prev => prev ? { ...prev, fechaLimite, totalDeuda: totalDeudaCalculada } : prev);
         setMovements(sortedMovements);
       } catch (historyError: any) {
         console.error('Error cargando historial:', historyError);

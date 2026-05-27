@@ -47,7 +47,6 @@ router.get('/:clienteId', async (req, res) => {
     const { clienteId } = req.params;
     const idTendero = req.user.id_tendero;
 
-    // Verificar pertenencia
     const verifica = await pool.query(`
       SELECT 1 FROM tendero_cliente WHERE id_tendero = $1 AND id_cliente = $2 AND estado = 'activo'
     `, [idTendero, clienteId]);
@@ -75,7 +74,7 @@ router.get('/:clienteId', async (req, res) => {
       desglose: {
         puntualidad: s.pts_puntualidad,
         historial: s.pts_historial,
-        frecuencia: s.pts_frecuencia,
+        cumplimiento: s.pts_frecuencia,
         antiguedad: s.pts_antiguedad
       }
     });
@@ -99,66 +98,129 @@ router.post('/:clienteId/calcular', async (req, res) => {
       return res.status(404).json({ error: 'Cliente no encontrado' });
     }
 
-    // Obtener datos históricos del cliente
-    const creditos = await pool.query(`
-      SELECT * FROM creditos WHERE id_cliente = $1 ORDER BY fecha_credito ASC
+    // Obtener datos del cliente
+    const clienteRow = await pool.query(`
+      SELECT * FROM clientes WHERE id_cliente = $1
     `, [clienteId]);
 
+    // Obtener todos los créditos del cliente
+    const creditos = await pool.query(`
+      SELECT * FROM creditos WHERE id_cliente = $1 AND id_tendero = $2 ORDER BY fecha_credito ASC
+    `, [clienteId, idTendero]);
+
+    // CASO CLIENTE NUEVO — sin historial crediticio
+    if (creditos.rows.length === 0) {
+      const puntajeTotal = 50;
+      const nivelRiesgo = 'medio';
+      const limiteSugerido = 50000;
+      const ptsPuntualidad = 0;
+      const ptsHistorial = 0;
+      const ptsCumplimiento = 0;
+      const ptsAntiguedad = 0;
+
+      await upsertScoring(clienteId, puntajeTotal, nivelRiesgo, ptsPuntualidad, ptsHistorial, ptsCumplimiento, ptsAntiguedad, limiteSugerido);
+      triggerMLRetrain('scoring_nuevo').catch(() => {});
+
+      return res.json({
+        message: 'Scoring calculado correctamente (cliente nuevo)',
+        id_cliente: parseInt(clienteId),
+        puntaje_total: puntajeTotal,
+        nivel_riesgo: nivelRiesgo,
+        limite_sugerido: limiteSugerido,
+        desglose: {
+          puntualidad: ptsPuntualidad,
+          historial: ptsHistorial,
+          cumplimiento: ptsCumplimiento,
+          antiguedad: ptsAntiguedad
+        }
+      });
+    }
+
+    // Obtener todos los abonos del cliente
     const abonos = await pool.query(`
       SELECT * FROM abonos WHERE id_cliente = $1 ORDER BY fecha_abono ASC
     `, [clienteId]);
 
-    const cliente = await pool.query(`
-      SELECT * FROM clientes WHERE id_cliente = $1
-    `, [clienteId]);
+    // Agrupar abonos por id_credito
+    const abonosPorCredito = {};
+    abonos.rows.forEach(a => {
+      if (!abonosPorCredito[a.id_credito]) abonosPorCredito[a.id_credito] = [];
+      abonosPorCredito[a.id_credito].push(a);
+    });
 
-    if (creditos.rows.length === 0) {
-      return res.status(400).json({ error: 'El cliente no tiene historial crediticio' });
-    }
-
-    // CALCULAR PUNTAJE
-    // Puntuidad (0-25 pts)
-    let ptsPuntualidad = 0;
+    // ── Categorizar créditos ──
+    const creditosPagados = creditos.rows.filter(c => c.estado === 'pagado');
     const creditosVencidos = creditos.rows.filter(c => c.estado === 'vencido');
-    if (creditosVencidos.length === 0) {
-      ptsPuntualidad = 25;
-    } else {
-      const porcentajeVencido = creditosVencidos.length / creditos.rows.length;
-      ptsPuntualidad = Math.max(0, Math.round(25 * (1 - porcentajeVencido)));
+    const creditosCerrados = [...creditosPagados, ...creditosVencidos]; // pagado + vencido
+
+    // ── 1. PUNTUALIDAD (0-25 pts) ──
+    // proporción de créditos pagados a tiempo / créditos pagados
+    let ptsPuntualidad = 0;
+    if (creditosPagados.length > 0) {
+      let pagosATiempo = 0;
+      creditosPagados.forEach(c => {
+        const abs = abonosPorCredito[c.id_credito];
+        if (abs && abs.length > 0) {
+          // último abono
+          const ultimoAbono = abs.reduce((max, a) =>
+            new Date(a.fecha_abono) > new Date(max.fecha_abono) ? a : max
+          );
+          const fechaLimite = new Date(c.fecha_limite_pago);
+          const fechaAbono = new Date(ultimoAbono.fecha_abono);
+          if (fechaAbono <= fechaLimite) pagosATiempo++;
+        }
+      });
+      const ratio = pagosATiempo / creditosPagados.length;
+      if (ratio >= 0.80) ptsPuntualidad = 25;
+      else if (ratio >= 0.60) ptsPuntualidad = 20;
+      else if (ratio >= 0.40) ptsPuntualidad = 15;
+      else if (ratio > 0) ptsPuntualidad = 10;
+      else ptsPuntualidad = 0;
     }
 
-    // Historial (0-25 pts)
+    // ── 2. CUMPLIMIENTO (0-25 pts) ──
+    // días promedio de atraso en créditos pagados
+    let ptsCumplimiento = 0;
+    if (creditosPagados.length > 0) {
+      let diasAtrasoTotal = 0;
+      creditosPagados.forEach(c => {
+        const abs = abonosPorCredito[c.id_credito];
+        if (abs && abs.length > 0) {
+          const ultimoAbono = abs.reduce((max, a) =>
+            new Date(a.fecha_abono) > new Date(max.fecha_abono) ? a : max
+          );
+          const fechaLimite = new Date(c.fecha_limite_pago);
+          const fechaAbono = new Date(ultimoAbono.fecha_abono);
+          const diffMs = fechaAbono - fechaLimite;
+          const diffDays = diffMs > 0 ? Math.ceil(diffMs / (1000 * 60 * 60 * 24)) : 0;
+          diasAtrasoTotal += diffDays;
+        }
+      });
+      const promedioAtraso = Math.round(diasAtrasoTotal / creditosPagados.length);
+
+      if (promedioAtraso === 0) ptsCumplimiento = 25;
+      else if (promedioAtraso <= 7) ptsCumplimiento = 20;
+      else if (promedioAtraso <= 15) ptsCumplimiento = 15;
+      else if (promedioAtraso <= 30) ptsCumplimiento = 10;
+      else ptsCumplimiento = 0;
+    }
+
+    // ── 3. HISTORIAL (0-25 pts) ──
+    // proporción de créditos pagados completamente / créditos cerrados (pagado + vencido)
     let ptsHistorial = 0;
-    const totalCreditos = creditos.rows.length;
-    if (totalCreditos >= 10) {
-      ptsHistorial = 25;
-    } else if (totalCreditos >= 5) {
-      ptsHistorial = 20;
-    } else if (totalCreditos >= 3) {
-      ptsHistorial = 15;
-    } else if (totalCreditos >= 1) {
-      ptsHistorial = 10;
+    if (creditosCerrados.length > 0) {
+      const ratio = creditosPagados.length / creditosCerrados.length;
+      if (ratio >= 0.90) ptsHistorial = 25;
+      else if (ratio >= 0.70) ptsHistorial = 20;
+      else if (ratio >= 0.50) ptsHistorial = 15;
+      else ptsHistorial = 10;
     }
 
-    // Frecuencia (0-25 pts)
-    let ptsFrecuencia = 0;
-    if (abonos.rows.length > 0) {
-      const totalAbonado = abonos.rows.reduce((sum, a) => sum + parseFloat(a.monto), 0);
-      const totalFiado = creditos.rows.reduce((sum, c) => sum + parseFloat(c.monto_total), 0);
-      const ratioPago = totalFiado > 0 ? totalAbonado / totalFiado : 0;
-
-      if (ratioPago >= 0.95) ptsFrecuencia = 25;
-      else if (ratioPago >= 0.80) ptsFrecuencia = 20;
-      else if (ratioPago >= 0.50) ptsFrecuencia = 15;
-      else if (ratioPago >= 0.25) ptsFrecuencia = 10;
-      else ptsFrecuencia = 5;
-    }
-
-    // Antigüedad (0-25 pts)
+    // ── 4. ANTIGÜEDAD (0-25 pts) ──
     let ptsAntiguedad = 0;
-    const fechaPrimerCredito = new Date(clientes.rows[0].created_at);
+    const fechaRegistro = new Date(clienteRow.rows[0].created_at);
     const hoy = new Date();
-    const mesesActivo = (hoy - fechaPrimerCredito) / (1000 * 60 * 60 * 24 * 30);
+    const mesesActivo = (hoy - fechaRegistro) / (1000 * 60 * 60 * 24 * 30);
 
     if (mesesActivo >= 24) ptsAntiguedad = 25;
     else if (mesesActivo >= 12) ptsAntiguedad = 20;
@@ -166,47 +228,47 @@ router.post('/:clienteId/calcular', async (req, res) => {
     else if (mesesActivo >= 3) ptsAntiguedad = 10;
     else if (mesesActivo >= 1) ptsAntiguedad = 5;
 
-    const puntajeTotal = ptsPuntualidad + ptsHistorial + ptsFrecuencia + ptsAntiguedad;
+    const puntajeTotal = ptsPuntualidad + ptsCumplimiento + ptsHistorial + ptsAntiguedad;
 
-    // Nivel de riesgo
+    // ── Nivel de riesgo ──
     let nivelRiesgo;
     if (puntajeTotal >= 80) nivelRiesgo = 'bajo';
     else if (puntajeTotal >= 50) nivelRiesgo = 'medio';
     else nivelRiesgo = 'alto';
 
-    // Límite sugerido basado en scoring
-    let limiteSugerido = 0;
-    const ultimoCredito = creditos.rows[creditos.rows.length - 1];
-    const montoUltimoCredito = parseFloat(ultimoCredito.monto_total);
+    // ── Límite sugerido ──
+    // base = promedio de los últimos 3 créditos cerrados (pagados + vencidos)
+    const ultimosCerrados = creditosCerrados
+      .sort((a, b) => new Date(b.fecha_credito) - new Date(a.fecha_credito))
+      .slice(0, 3);
 
-    if (nivelRiesgo === 'bajo') {
-      limiteSugerido = Math.max(montoUltimoCredito * 1.5, 50000);
-    } else if (nivelRiesgo === 'medio') {
-      limiteSugerido = Math.max(montoUltimoCredito * 1.2, 30000);
-    } else {
-      limiteSugerido = Math.max(montoUltimoCredito * 0.8, 10000);
+    let base = 0;
+    if (ultimosCerrados.length > 0) {
+      const sumaMontos = ultimosCerrados.reduce((sum, c) => sum + parseFloat(c.monto_total), 0);
+      base = sumaMontos / ultimosCerrados.length;
     }
 
-    // Actualizar o insertar scoring
-    const existingScoring = await pool.query(`
-      SELECT id_scoring FROM scoring WHERE id_cliente = $1
-    `, [clienteId]);
+    let factor;
+    if (nivelRiesgo === 'bajo') factor = 1.5;
+    else if (nivelRiesgo === 'medio') factor = 1.0;
+    else factor = 0.5;
 
-    if (existingScoring.rows.length > 0) {
-      await pool.query(`
-        UPDATE scoring SET puntaje = $1, nivel_riesgo = $2, pts_puntualidad = $3,
-               pts_historial = $4, pts_frecuencia = $5, pts_antiguedad = $6,
-               limite_sugerido = $7, fecha_calculo = NOW()
-        WHERE id_cliente = $8
-      `, [puntajeTotal, nivelRiesgo, ptsPuntualidad, ptsHistorial, ptsFrecuencia, ptsAntiguedad, limiteSugerido, clienteId]);
-    } else {
-      await pool.query(`
-        INSERT INTO scoring (id_cliente, puntaje, nivel_riesgo, pts_puntualidad, pts_historial,
-                           pts_frecuencia, pts_antiguedad, limite_sugerido)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      `, [clienteId, puntajeTotal, nivelRiesgo, ptsPuntualidad, ptsHistorial, ptsFrecuencia, ptsAntiguedad, limiteSugerido]);
-      triggerMLRetrain('scoring_nuevo').catch(() => {});
+    // saldo pendiente actual (créditos vigentes + vencidos)
+    const saldoPendienteActual = creditos.rows
+      .filter(c => c.estado !== 'pagado')
+      .reduce((sum, c) => sum + parseFloat(c.saldo_pendiente), 0);
+
+    let limiteSugerido = Math.max(0, Math.round(base * factor - saldoPendienteActual));
+    limiteSugerido = Math.min(limiteSugerido, 300000);
+
+    if (limiteSugerido === 0 && ultimosCerrados.length === 0) {
+      // Si no hay créditos cerrados para calcular base, usar un valor mínimo conservador
+      limiteSugerido = 50000;
     }
+
+    // Guardar en BD
+    await upsertScoring(clienteId, puntajeTotal, nivelRiesgo, ptsPuntualidad, ptsHistorial, ptsCumplimiento, ptsAntiguedad, limiteSugerido);
+    triggerMLRetrain('scoring_nuevo').catch(() => {});
 
     res.json({
       message: 'Scoring calculado correctamente',
@@ -217,7 +279,7 @@ router.post('/:clienteId/calcular', async (req, res) => {
       desglose: {
         puntualidad: ptsPuntualidad,
         historial: ptsHistorial,
-        frecuencia: ptsFrecuencia,
+        cumplimiento: ptsCumplimiento,
         antiguedad: ptsAntiguedad
       }
     });
@@ -226,6 +288,27 @@ router.post('/:clienteId/calcular', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
+
+async function upsertScoring(clienteId, puntaje, nivelRiesgo, ptsPuntualidad, ptsHistorial, ptsCumplimiento, ptsAntiguedad, limiteSugerido) {
+  const existing = await pool.query(`
+    SELECT id_scoring FROM scoring WHERE id_cliente = $1
+  `, [clienteId]);
+
+  if (existing.rows.length > 0) {
+    await pool.query(`
+      UPDATE scoring SET puntaje = $1, nivel_riesgo = $2, pts_puntualidad = $3,
+             pts_historial = $4, pts_frecuencia = $5, pts_antiguedad = $6,
+             limite_sugerido = $7, fecha_calculo = NOW()
+      WHERE id_cliente = $8
+    `, [puntaje, nivelRiesgo, ptsPuntualidad, ptsHistorial, ptsCumplimiento, ptsAntiguedad, limiteSugerido, clienteId]);
+  } else {
+    await pool.query(`
+      INSERT INTO scoring (id_cliente, puntaje, nivel_riesgo, pts_puntualidad, pts_historial,
+                         pts_frecuencia, pts_antiguedad, limite_sugerido)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [clienteId, puntaje, nivelRiesgo, ptsPuntualidad, ptsHistorial, ptsCumplimiento, ptsAntiguedad, limiteSugerido]);
+  }
+}
 
 // GET /api/scoring/:clienteId/recomendacion
 router.get('/:clienteId/recomendacion', async (req, res) => {
@@ -254,15 +337,12 @@ router.get('/:clienteId/recomendacion', async (req, res) => {
     let recomendacion;
     let mensaje;
 
-    if (s.puntaje >= 80) {
+    if (s.nivel_riesgo === 'bajo') {
       recomendacion = 'aprobar';
       mensaje = `El cliente tiene un excelente historial con ${s.puntaje} puntos. Es muy recomendable aprobar nuevos créditos.`;
-    } else if (s.puntaje >= 60) {
-      recomendacion = 'aprobar';
-      mensaje = `Con ${s.puntaje} puntos, el cliente tiene un buen comportamiento de pago. Se recomienda aprobar con monitoreo regular.`;
-    } else if (s.puntaje >= 40) {
+    } else if (s.nivel_riesgo === 'medio') {
       recomendacion = 'con_precaucion';
-      mensaje = `El cliente tiene ${s.puntaje} puntos y un nivel de riesgo ${s.nivel_riesgo}. Se recomienda aprobar solo montos pequeños y con fecha de pago corta.`;
+      mensaje = `El cliente tiene ${s.puntaje} puntos y un nivel de riesgo ${s.nivel_riesgo}. Se recomienda aprobar con monitoreo regular.`;
     } else {
       recomendacion = 'rechazar';
       mensaje = `Con solo ${s.puntaje} puntos y nivel de riesgo ${s.nivel_riesgo}, el cliente presenta alto riesgo de mora. No se recomienda aprobar nuevos créditos en este momento.`;

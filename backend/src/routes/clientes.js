@@ -13,8 +13,8 @@ router.get('/', async (req, res) => {
 
     let query = `
       SELECT c.id_cliente, c.nombre_completo, c.telefono, c.direccion, c.estado, c.created_at,
-             COALESCE(SUM(cr.saldo_pendiente), 0) as total_deuda,
-             COUNT(cr.id_credito) as total_creditos
+             COALESCE(SUM(CASE WHEN cr.estado != 'pagado' THEN cr.saldo_pendiente ELSE 0 END), 0) as total_deuda,
+             COUNT(CASE WHEN cr.estado != 'pagado' THEN cr.id_credito END) as total_creditos
       FROM clientes c
       JOIN tendero_cliente tc ON c.id_cliente = tc.id_cliente
       LEFT JOIN creditos cr ON c.id_cliente = cr.id_cliente AND cr.id_tendero = tc.id_tendero
@@ -78,7 +78,7 @@ router.get('/me', async (req, res) => {
       SELECT COALESCE(SUM(saldo_pendiente), 0) as total_deuda,
              COUNT(*) as total_creditos,
              COUNT(CASE WHEN estado = 'vencido' THEN 1 END) as creditos_vencidos
-      FROM creditos WHERE id_cliente = $1 AND id_tendero = $2
+      FROM creditos WHERE id_cliente = $1 AND id_tendero = $2 AND estado != 'pagado'
     `, [idCliente, idTendero]);
 
     const scoring = await pool.query(`
@@ -147,7 +147,7 @@ router.get('/:id', async (req, res) => {
       SELECT COALESCE(SUM(saldo_pendiente), 0) as total_deuda,
              COUNT(*) as total_creditos,
              COUNT(CASE WHEN estado = 'vencido' THEN 1 END) as creditos_vencidos
-      FROM creditos WHERE id_cliente = $1 AND id_tendero = $2
+      FROM creditos WHERE id_cliente = $1 AND id_tendero = $2 AND estado != 'pagado'
     `, [id, idTendero]);
 
     const scoring = await pool.query(`

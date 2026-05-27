@@ -1,7 +1,13 @@
 import os
 import json
 import psycopg2
+from dotenv import load_dotenv
 from psycopg2.extras import RealDictCursor
+
+# Cargar .env del directorio padre (backend/.env)
+env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+load_dotenv(dotenv_path=env_path)
+
 
 STATE_FILE = os.path.join(os.path.dirname(__file__), 'ml_state.json')
 
@@ -13,6 +19,7 @@ def get_connection():
 def get_features(id_cliente: int):
     conn = get_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
+    # Nota: pts_frecuencia almacena pts_cumplimiento (días promedio de atraso en créditos pagados)
     cur.execute(
         """
         SELECT pts_puntualidad, pts_historial, pts_frecuencia, pts_antiguedad, puntaje
@@ -21,7 +28,7 @@ def get_features(id_cliente: int):
         ORDER BY fecha_calculo DESC
         LIMIT 1
         """,
-        (id_cliente,),
+        (str(id_cliente),),
     )
     row = cur.fetchone()
     cur.close()
@@ -50,7 +57,7 @@ def get_last_credit_amount(id_cliente: int) -> float:
         ORDER BY fecha_credito DESC
         LIMIT 1
         """,
-        (id_cliente,),
+        (str(id_cliente),),
     )
     row = cur.fetchone()
     cur.close()
