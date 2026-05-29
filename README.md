@@ -32,6 +32,11 @@ Sistema_Fiado/
 │   │       ├── alertas.js        # Sistema de alertas
 │   │       ├── analitica.js      # KPIs y predicciones
 │   │       └── reportes.js       # Generación de reportes
+│   ├── ml_service/    # Microservicio ML (Random Forest) ✅
+│   │   ├── model.py              # Entrenamiento del modelo
+│   │   ├── predict.py            # FastAPI - predicciones
+│   │   ├── features.py           # Extracción de features
+│   │   └── requirements.txt      # Dependencias Python
 │   ├── README.md                 # Documentación completa
 │   └── package.json
 │
@@ -57,10 +62,11 @@ Sistema_Fiado/
 - Detección automática de mora
 
 ### ✅ Scoring Crediticio (IA)
-- Algoritmo de 4 variables (100 pts máximo)
-- Puntualidad, historial, frecuencia, antigüedad
+- Algoritmo de reglas: 4 variables (100 pts máximo)
+- Puntualidad, cumplimiento, historial, antigüedad
 - Recomendaciones: aprobar / con precaución / rechazar
 - Límites sugeridos por cliente
+- Microservicio ML (Random Forest) para predicción predictiva con reentrenamiento progresivo por eventos
 
 ### ✅ Analítica y Predicciones
 - Indicadores KPI por período (semana/mes/trimestre)
@@ -87,6 +93,15 @@ Sistema_Fiado/
 | ORM/Cliente | pg (node-postgres) |
 | Hash passwords | bcryptjs |
 | Variables entorno | dotenv |
+
+### Machine Learning
+| Componente    | Tecnología                |
+| ------------- | ------------------------- |
+| Microservicio | Python 3.10+              |
+| Framework API | FastAPI + Uvicorn         |
+| Modelo        | scikit-learn (Random Forest) |
+| Conexión BD   | psycopg2-binary           |
+| Entorno       | python-dotenv + venv      |
 
 ### Frontend (próximamente)
 | Componente | Tecnología |
@@ -130,6 +145,38 @@ npm start
 ```
 
 > **Nota:** Requiere que la base de datos PostgreSQL esté corriendo y las tablas estén creadas con el script SQL del modelo de datos.
+
+### 2. Microservicio ML (Random Forest)
+
+```bash
+cd backend/ml_service
+
+# Crear entorno virtual (primera vez)
+python -m venv venv
+
+# Activar entorno
+venv\Scripts\activate        # Windows
+source venv/bin/activate     # macOS/Linux
+
+# Instalar dependencias
+pip install -r requirements.txt
+
+# Entrenar modelo inicial (genera modelo.pkl y ml_state.json)
+python model.py
+
+# Iniciar servidor de predicciones (puerto 8000)
+python predict.py
+```
+
+**Verificación rápida:**
+
+```bash
+cd backend/ml_service
+venv\Scripts\python test_ml.py   # Windows
+python test_ml.py                # macOS/Linux
+```
+
+El script `test_ml.py` prueba `POST /predict` con clientes existentes e inexistentes, y `POST /ml/retrain` para verificar el umbral de reentrenamiento. No requiere `curl`.
 
 ---
 

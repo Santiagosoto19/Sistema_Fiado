@@ -23,6 +23,7 @@ export default function LoginScreen() {
     handleLogin,
     handleForgotPassword,
     handleRegister,
+    handleRegisterTendero,
     handleGoogleLogin,
   } = useLogin();
 
@@ -99,7 +100,7 @@ export default function LoginScreen() {
           {/* Botón Registrarse */}
           <TouchableOpacity
             style={styles.btnOutline}
-            onPress={handleRegister}
+            onPress={handleRegisterTendero}
             activeOpacity={0.75}
           >
             <Text style={styles.btnOutlineText}>Registrarse</Text>
@@ -118,6 +119,11 @@ export default function LoginScreen() {
               <Text style={styles.footerLink}>Regístrate</Text>
             </TouchableOpacity>
           </View>
+
+          <TouchableOpacity style={styles.footer} onPress={handleRegisterTendero}>
+            <Text style={styles.footerText}>¿Eres tendero? </Text>
+            <Text style={styles.footerLink}>Regístrate como tendero</Text>
+          </TouchableOpacity>
 
         </View>
       </KeyboardAvoidingView>

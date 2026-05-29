@@ -100,7 +100,11 @@ export const useLogin = () => {
   };
 
   const handleRegister = () => {
-    // TODO: router.push('/auth/register');
+    router.push('/(auth)/registerClientes' as any);
+  };
+
+  const handleRegisterTendero = () => {
+    router.push('/(auth)/registerTendero' as any);
   };
 
   const handleGoogleLogin = () => {
@@ -114,6 +118,7 @@ export const useLogin = () => {
     handleLogin,
     handleForgotPassword,
     handleRegister,
+    handleRegisterTendero,
     handleGoogleLogin,
   };
 };

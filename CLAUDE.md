@@ -115,80 +115,20 @@ caja "Recomendación IA" en la pantalla de nuevo crédito.
 
 ### Arquitectura
 
-- El scoring por reglas ya existe y está completo en `src/routes/scoring.js`.
-- El Random Forest es un microservicio Python separado (`backend/ml_service/`).
+- El scoring por reglas existe en `src/routes/scoring.js` (4 variables, 25 pts cada una).
+- El Random Forest es un microservicio Python separado (`backend/ml_service/`) que consume los mismos features desde la tabla `scoring`.
 - Node.js llama al microservicio desde `GET /api/scoring/:clienteId/recomendacion`.
-- El frontend consume ese endpoint antes de mostrar el formulario de nuevo crédito.
-
-### Microservicio — archivos a crear
-
-backend/ml_service/
-├── model.py       # entrenamiento del RF con scikit-learn, guarda modelo.pkl
-├── predict.py     # FastAPI: POST /predict → nivel_riesgo, puntaje_rf, limite_sugerido, confianza
-├── features.py    # extrae pts_puntualidad, pts_historial, pts_cumplimiento (columna pts_frecuencia en BD), pts_antiguedad, puntaje desde tabla scoring
-└── modelo.pkl     # generado al correr model.py
-
-### Features del modelo
-
-Las cuatro variables vienen directamente de la tabla `scoring`:
-
-- pts_puntualidad (0-25): proporción de créditos pagados a tiempo sobre créditos pagados
-- pts_cumplimiento (0-25): días promedio de atraso en créditos pagados (0 días = 25 pts, ≤7 = 20, ≤15 = 15, ≤30 = 10, >30 = 0)
-- pts_historial  (0-25): proporción de créditos pagados completamente sobre créditos cerrados (pagado + vencido)
-- pts_antiguedad (0-25): meses desde primer crédito
-- puntaje        (0-100): suma total (feature adicional)
-
-### Niveles de riesgo y umbrales
-
-| nivel_riesgo | puntaje | acción sugerida    |
-| ------------ | ------- | ------------------ |
-| bajo         | ≥80     | `aprobar`          |
-| medio        | 50–79   | `con_precaucion`   |
-| alto         | <50    | `rechazar`         |
-
-###### Límite sugerido
-
-- base = promedio de los últimos 3 créditos cerrados
-- factor: bajo=1.5 / medio=1.0 / alto=0.5
-- límite_final = max(0, min(base × factor − saldo_pendiente_actual, 300.000))
-
-###### Cliente nuevo
-
-- puntaje = 50, nivel = `medio`, recomendación = `con_precaucion`, límite = $50.000
-
-### Endpoint Node.js a modificar
-
-GET /api/scoring/:clienteId/recomendacion
-→ leer tabla scoring (ya implementado)
-→ llamar POST http://localhost:8000/ml/predict con { id_cliente }
-→ combinar respuesta de reglas + RF y retornar al frontend
-
-### Bootstrap del modelo
-
-El campo nivel_riesgo calculado por reglas actúa como etiqueta de entrenamiento.
-
-### Bug conocido en useVistaUsuario.ts (CORREGIDO)
-
-~~nivelConfianza usa (scoring.puntaje / 1000) * 100~~ → Corregido a `(scoring.puntaje / 100) * 100` en `mobile/hooks/useVistaUsuario.ts`.
-
-### Pantallas pendientes relacionadas
-
-- "Nuevo crédito": placeholder en Dashboard (handleNuevoCredito vacío)
-- Debe llamar GET /api/scoring/:clienteId/recomendacion al seleccionar cliente
-- Renderizar caja RecomendacionIA con: puntaje, nivel_riesgo, limite_sugerido
-
----
-
-## Motor de analítica predictiva — Random Forest (Implementado)
+- El endpoint `/recomendacion` combina scoring por reglas + predicción RF y retorna ambos al frontend.
 
 ### Microservicio Python (`backend/ml_service/`)
 
 | Archivo | Propósito |
 |---------|-----------|
-| `model.py` | Entrena el Random Forest con `scoring` existente y guarda `modelo.pkl` |
+| `model.py` | Entrena Random Forest con `scoring` existente y guarda `modelo.pkl` |
 | `predict.py` | FastAPI en puerto `8000`: `POST /predict` para predicción, `POST /ml/retrain` para reentrenamiento |
 | `features.py` | Extrae features y gestiona estado de entrenamiento (`ml_state.json`) |
 | `requirements.txt` | Dependencias: fastapi, uvicorn, scikit-learn, psycopg2-binary, python-dotenv |
+| `test_ml.py` | Script de prueba con urllib (sin curl) para verificar `/predict` y `/ml/retrain` |
 
 ### Comandos del microservicio
 
@@ -210,7 +150,33 @@ python model.py
 python predict.py
 ```
 
-### Reentrenamiento por eventos (implementado)
+### Features del modelo
+
+Las cinco variables vienen directamente de la tabla `scoring`:
+
+- `pts_puntualidad` (0-25): proporción de créditos pagados a tiempo sobre créditos pagados
+- `pts_cumplimiento` (0-25): días promedio de atraso en créditos pagados (0 días = 25 pts, ≤7 = 20, ≤15 = 15, ≤30 = 10, >30 = 0)
+- `pts_historial` (0-25): proporción de créditos pagados completamente sobre créditos cerrados (pagado + vencido)
+- `pts_antiguedad` (0-25): meses desde el registro del cliente
+- `puntaje` (0-100): suma total (feature adicional)
+
+### Niveles de riesgo y umbrales
+
+| nivel_riesgo | puntaje | acción sugerida    |
+| ------------ | ------- | ------------------ |
+| bajo         | ≥80     | `aprobar`          |
+| medio        | 50–79   | `con_precaucion`   |
+| alto         | <50     | `rechazar`         |
+
+**Límite sugerido:**
+- base = promedio de los últimos 3 créditos cerrados
+- factor: bajo=1.5 / medio=1.0 / alto=0.5
+- límite_final = max(0, min(base × factor − saldo_pendiente_actual, 300.000))
+
+**Cliente nuevo:**
+- puntaje = 50, nivel = `medio`, recomendación = `con_precaucion`, límite = $50.000
+
+### Reentrenamiento por eventos
 
 El modelo se reentrena solo cuando ocurre un evento significativo, no por tiempo:
 
@@ -222,11 +188,23 @@ El microservicio verifica que el volumen de datos creció >=20% antes de reentre
 
 ### Integración Node.js
 
-`backend/src/routes/scoring.js` ahora incluye:
+`backend/src/routes/scoring.js` incluye:
 - Función `callMLService(clienteId)` que hace POST a `localhost:8000/predict`.
-- El endpoint `GET /api/scoring/:clienteId/recomendacion` combina scoring por reglas + predicción RF en `random_forest`.
+- El endpoint `GET /api/scoring/:clienteId/recomendacion` combina scoring por reglas + predicción RF en el campo `random_forest`.
 - Si el microservicio ML no está corriendo, `random_forest` es `null` y el endpoint sigue funcionando.
 
-### Utilidad de trigger
-
 `backend/src/utils/mlTrigger.js` exporta `triggerMLRetrain(evento)` para que cualquier ruta dispare el reentrenamiento de forma asíncrona y sin bloquear.
+
+### Bootstrap del modelo
+
+El campo `nivel_riesgo` calculado por reglas actúa como etiqueta de entrenamiento. Al correr `python model.py` se genera `modelo.pkl` y `ml_state.json`.
+
+### Bug conocido en useVistaUsuario.ts (CORREGIDO)
+
+~~nivelConfianza usa (scoring.puntaje / 1000) * 100~~ → Corregido a `(scoring.puntaje / 100) * 100` en `mobile/hooks/useVistaUsuario.ts`.
+
+### Pantallas pendientes relacionadas
+
+- "Nuevo crédito": placeholder en Dashboard (`handleNuevoCredito` vacío).
+- Debe llamar `GET /api/scoring/:clienteId/recomendacion` al seleccionar cliente.
+- Renderizar caja RecomendacionIA con: puntaje, nivel_riesgo, limite_sugerido.
