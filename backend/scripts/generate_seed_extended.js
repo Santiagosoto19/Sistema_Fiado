@@ -492,8 +492,7 @@ for (let i = 0; i < 50; i++) {
   scoring.push([
     OFFSETS.scoring + i + 1,                       // 6-55
     OFFSETS.clientes + i + 1,                       // 6-55
-    puntajes[i],
-    nivelesRiesgo[i],                               // CORREÇÃO
+    nivelesRiesgo[i],
     puntualidad[i],
     historial[i],
     frecuencia[i],
@@ -503,7 +502,7 @@ for (let i = 0; i < 50; i++) {
   ]);
 }
 sql += buildInsert('scoring',
-  ['id_scoring','id_cliente','puntaje','nivel_riesgo','pts_puntualidad','pts_historial','pts_frecuencia','pts_antiguedad','limite_sugerido','fecha_calculo'],
+  ['id_scoring','id_cliente','nivel_riesgo','pts_puntualidad','pts_historial','pts_cumplimiento','pts_antiguedad','limite_sugerido','fecha_calculo'],
   scoring
 );
 

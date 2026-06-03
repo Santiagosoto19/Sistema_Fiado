@@ -5,7 +5,9 @@
       "Bash(python predict.py)",
       "Bash(python test_ml.py)",
       "Bash(venv/Scripts/python *)",
-      "Bash(ipconfig)"
+      "Bash(ipconfig)",
+      "Bash(python *)",
+      "Bash(taskkill //F //IM python.exe)"
     ]
   }
 }

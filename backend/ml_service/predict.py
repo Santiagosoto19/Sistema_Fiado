@@ -4,7 +4,13 @@ import threading
 import numpy as np
 from fastapi import FastAPI
 from pydantic import BaseModel
-from features import get_features, get_last_credit_amount, count_scoring_records, load_state, save_state
+from features import (
+    get_features,
+    get_limit_data,
+    count_scoring_records,
+    load_state,
+    save_state,
+)
 from model import train_model
 
 app = FastAPI()
@@ -63,13 +69,17 @@ def predict(req: PredictRequest):
     puntaje_rf = int(base_scores.get(nivel_riesgo, 50) * confidence)
     puntaje_rf = max(0, min(100, puntaje_rf))
 
-    monto_ultimo = get_last_credit_amount(req.id_cliente)
+    base, saldo_pendiente = get_limit_data(req.id_cliente)
+
     if nivel_riesgo == "bajo":
-        limite = max(monto_ultimo * 2.0, 50000)
+        factor = 1.5
     elif nivel_riesgo == "medio":
-        limite = max(monto_ultimo * 1.5, 30000)
+        factor = 1.0
     else:
-        limite = max(monto_ultimo * 0.8, 10000)
+        factor = 0.5
+
+    limite = base * factor - saldo_pendiente
+    limite = max(0.0, min(limite, 300000.0))
 
     return {
         "nivel_riesgo": nivel_riesgo,

@@ -65,7 +65,7 @@ npm run lint       # Run ESLint via expo lint
 
 ### Domain Logic
 
-- **Scoring** (`src/routes/scoring.js`): 4 variables, 25 points each (puntualidad, cumplimiento, historial, antigüedad). Risk levels: `bajo` (≥80), `medio` (50–79), `alto` (<50). Recommendation thresholds aligned: `bajo` → `aprobar`, `medio` → `con_precaucion`, `alto` → `rechazar`. Cliente nuevo sin historial: puntaje=50, nivel=`medio`, límite=$50.000.
+- **Scoring** (`src/routes/scoring.js`): 4 variables, 25 pts cada una (puntualidad, cumplimiento, historial, antigüedad). Puntaje = suma on-the-fly (0–100). Risk levels: `bajo` (≥80), `medio` (50–79), `alto` (<50). Recommendation thresholds aligned: `bajo` → `aprobar`, `medio` → `con_precaucion`, `alto` → `rechazar`. Cliente nuevo sin historial: puntaje=50, nivel=`medio`, límite=$50.000. El campo `nivel_riesgo` en BD contiene la predicción del ML; `confianza` almacena la probabilidad de la clase predicha.
 - **Credits & Payments** (`src/routes/creditos.js`, `src/routes/abonos.js`): Creating an abono runs in a transaction: inserts the payment, updates `creditos.saldo_pendiente`, and marks the credit `pagado` if balance reaches zero.
 - **Alerts** (`src/routes/alertas.js`): Types are `critica`, `proxima`, `informativa`. Returned sorted by priority.
 
@@ -152,13 +152,16 @@ python predict.py
 
 ### Features del modelo
 
-Las cinco variables vienen directamente de la tabla `scoring`:
+Las cuatro variables se almacenan en la tabla `scoring`; el puntaje se calcula on-the-fly como su suma (0–100) y no se persiste:
 
-- `pts_puntualidad` (0-25): proporción de créditos pagados a tiempo sobre créditos pagados
-- `pts_cumplimiento` (0-25): días promedio de atraso en créditos pagados (0 días = 25 pts, ≤7 = 20, ≤15 = 15, ≤30 = 10, >30 = 0)
-- `pts_historial` (0-25): proporción de créditos pagados completamente sobre créditos cerrados (pagado + vencido)
+- `pts_puntualidad` (0-25): proporción de créditos pagados a tiempo sobre **créditos cerrados** (pagados + vencidos): ≥80% = 25 pts; ≥60% = 20; ≥40% = 15; ≥1 a tiempo = 10; ninguno = 0.
+- `pts_cumplimiento` (0-25): días promedio de atraso en créditos **cerrados** (pagados + vencidos). Los vencidos cuentan como atraso >30 días (0 pts). 0 días = 25 pts; ≤7 = 20; ≤15 = 15; ≤30 = 10; >30 = 0.
+- `pts_historial` (0-25): proporción de créditos pagados completamente sobre créditos cerrados (pagado + vencido): ≥90% = 25 pts; ≥70% = 20; ≥50% = 15; ≥1 cerrado = 10; sin historial = 0.
 - `pts_antiguedad` (0-25): meses desde el registro del cliente
-- `puntaje` (0-100): suma total (feature adicional)
+
+Además, la tabla `scoring` almacena el resultado del ML:
+- `nivel_riesgo` (único): clase predicha por el Random Forest (`bajo`, `medio`, `alto`).
+- `confianza` (0.0000–1.0000): probabilidad máxima de la clase predicha.
 
 ### Niveles de riesgo y umbrales
 
@@ -190,14 +193,14 @@ El microservicio verifica que el volumen de datos creció >=20% antes de reentre
 
 `backend/src/routes/scoring.js` incluye:
 - Función `callMLService(clienteId)` que hace POST a `localhost:8000/predict`.
-- El endpoint `GET /api/scoring/:clienteId/recomendacion` combina scoring por reglas + predicción RF en el campo `random_forest`.
-- Si el microservicio ML no está corriendo, `random_forest` es `null` y el endpoint sigue funcionando.
+- Al calcular scoring (`POST /calcular`), el backend guarda las 4 variables + `limite_sugerido` y **inmediatamente** llama al ML para sobreescribir `nivel_riesgo` y `confianza` en la misma fila. Si el microservicio no responde, `confianza` queda `null` y `nivel_riesgo` conserva el valor por reglas.
+- El endpoint `GET /api/scoring/:clienteId/recomendacion` lee `nivel_riesgo` y `confianza` directamente de la tabla `scoring` (no llama al ML en tiempo real salvo que `confianza` sea `null`).
 
 `backend/src/utils/mlTrigger.js` exporta `triggerMLRetrain(evento)` para que cualquier ruta dispare el reentrenamiento de forma asíncrona y sin bloquear.
 
 ### Bootstrap del modelo
 
-El campo `nivel_riesgo` calculado por reglas actúa como etiqueta de entrenamiento. Al correr `python model.py` se genera `modelo.pkl` y `ml_state.json`.
+La etiqueta de entrenamiento se deriva del puntaje por reglas (suma de las 4 variables: ≥80 → `bajo`, ≥50 → `medio`, <50 → `alto`). No se lee `nivel_riesgo` de la BD para evitar un **feedback loop**. Al correr `python model.py` se genera `modelo.pkl` y `ml_state.json`.
 
 ### Bug conocido en useVistaUsuario.ts (CORREGIDO)
 

@@ -17,12 +17,13 @@ def get_connection():
 
 
 def get_features(id_cliente: int):
+    """Devuelve [pts_puntualidad, pts_historial, pts_cumplimiento, pts_antiguedad, puntaje_calc].
+    El puntaje se calcula como suma de las 4 variables (ya no se almacena en BD)."""
     conn = get_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    # Nota: pts_frecuencia almacena pts_cumplimiento (días promedio de atraso en créditos pagados)
     cur.execute(
         """
-        SELECT pts_puntualidad, pts_historial, pts_frecuencia, pts_antiguedad, puntaje
+        SELECT pts_puntualidad, pts_historial, pts_cumplimiento, pts_antiguedad
         FROM scoring
         WHERE id_cliente = %s
         ORDER BY fecha_calculo DESC
@@ -37,44 +38,65 @@ def get_features(id_cliente: int):
     if not row:
         return None
 
+    puntaje = row["pts_puntualidad"] + row["pts_historial"] + row["pts_cumplimiento"] + row["pts_antiguedad"]
     return [
         row["pts_puntualidad"],
         row["pts_historial"],
-        row["pts_frecuencia"],
+        row["pts_cumplimiento"],
         row["pts_antiguedad"],
-        row["puntaje"],
+        puntaje,
     ]
 
 
-def get_last_credit_amount(id_cliente: int) -> float:
+def get_limit_data(id_cliente: int):
+    """
+    Retorna (base, saldo_pendiente) para calcular el límite sugerido.
+    - base = promedio de los últimos 3 créditos cerrados (pagado + vencido)
+    - saldo_pendiente = suma de saldo_pendiente de créditos no pagados (vigentes + vencidos)
+    """
     conn = get_connection()
     cur = conn.cursor()
+
+    # Promedio de los últimos 3 créditos cerrados
     cur.execute(
         """
-        SELECT monto_total
-        FROM creditos
-        WHERE id_cliente = %s
-        ORDER BY fecha_credito DESC
-        LIMIT 1
+        SELECT COALESCE(AVG(monto_total), 0)
+        FROM (
+            SELECT monto_total
+            FROM creditos
+            WHERE id_cliente = %s AND estado IN ('pagado', 'vencido')
+            ORDER BY fecha_credito DESC
+            LIMIT 3
+        ) sub
         """,
         (str(id_cliente),),
     )
-    row = cur.fetchone()
+    base = float(cur.fetchone()[0])
+
+    # Saldo pendiente actual (créditos que no están pagados)
+    cur.execute(
+        """
+        SELECT COALESCE(SUM(saldo_pendiente), 0)
+        FROM creditos
+        WHERE id_cliente = %s AND estado != 'pagado'
+        """,
+        (str(id_cliente),),
+    )
+    saldo_pendiente = float(cur.fetchone()[0])
+
     cur.close()
     conn.close()
 
-    if not row:
-        return 0.0
-
-    return float(row[0])
+    return base, saldo_pendiente
 
 
 def fetch_all_scoring():
+    """Devuelve filas con las 4 variables + nivel_riesgo. El puntaje se recalcula en model.py."""
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT pts_puntualidad, pts_historial, pts_frecuencia, pts_antiguedad, puntaje, nivel_riesgo
+        SELECT pts_puntualidad, pts_historial, pts_cumplimiento, pts_antiguedad, nivel_riesgo
         FROM scoring
         """
     )
