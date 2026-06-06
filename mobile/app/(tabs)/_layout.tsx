@@ -123,7 +123,6 @@ export default function TabLayout() {
 
       {/* Ocultamos pestañas técnicas que no queremos en el menú */}
       <Tabs.Screen name="transfer" options={{ href: null }} />
-      <Tabs.Screen name="wallet" options={{ href: null }} />
     </Tabs>
   );
 }
