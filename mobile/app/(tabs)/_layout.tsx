@@ -95,7 +95,7 @@ export default function TabLayout() {
         }}
       />
 
-
+      
       <Tabs.Screen
         name="wallet"
         options={{
@@ -105,7 +105,7 @@ export default function TabLayout() {
         }}
       />
 
-      {/* Comunes */}
+    {/* Comunes */}
       <Tabs.Screen
         name="profile"
         options={{
@@ -123,6 +123,7 @@ export default function TabLayout() {
 
       {/* Ocultamos pestañas técnicas que no queremos en el menú */}
       <Tabs.Screen name="transfer" options={{ href: null }} />
+      <Tabs.Screen name="wallet" options={{ href: null }} />
     </Tabs>
   );
 }

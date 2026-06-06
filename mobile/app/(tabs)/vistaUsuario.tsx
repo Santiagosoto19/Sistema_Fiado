@@ -10,8 +10,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import { vistaUsuarioStyles as styles } from '@/constants/vistaUsuario.styles';
-import { Colors } from '@/constants/theme';
+import { COLORS } from '@/constants/colors';
 import { useVistaUsuario } from '@/hooks/useVistaUsuario';
 
 const VistaUsuario = () => {
@@ -27,78 +28,93 @@ const VistaUsuario = () => {
 
   if (token === null || loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={Colors.light.palette.primary} size="large" />
-      </View>
+      <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.white }}>
+        <View style={[styles.center, { backgroundColor: COLORS.white }]}>
+          <ActivityIndicator color={COLORS.primary} size="large" />
+        </View>
+      </SafeAreaView>
     );
   }
 
-  const palette = Colors.light.palette;
-
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.white }}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.debtCard}>
-          <View style={styles.cardTop}>
+      {/* Header sobre fondo verde */}
+      <View style={{ backgroundColor: COLORS.primary }}>
+        <View style={styles.header}>
+          <Text style={styles.welcomeText}>
+            Hola, {userData?.nombreUsuario || 'Usuario'}
+          </Text>
+          <Text style={styles.welcomeSub}>
+            {userData?.nombreTienda || 'Sin tienda asociada'}
+          </Text>
+        </View>
+      </View>
+
+      {/* Card blanca que sube desde abajo */}
+      <View style={styles.card}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          overScrollMode="never"
+        >
+          {/* Card Principal — Deuda Total */}
+          <View style={styles.debtCard}>
             <Text style={styles.cardSubtitle}>
               Tu Cuenta En La Tienda {userData?.nombreTienda}
             </Text>
             <View style={styles.totalRow}>
-              <View style={styles.dot} />
+              <Ionicons name="calendar-outline" size={14} color={COLORS.textMuted} />
               <Text style={styles.totalLabel}>Total A Pagar</Text>
             </View>
             <Text style={styles.debtAmount}>
               ${userData?.totalDeuda.toLocaleString()}
             </Text>
-            <Text style={styles.debtDate}>Sujeto a condiciones de crédito</Text>
+            <Text style={styles.debtDate}>Pagar Antes Del {userData?.fechaLimite}</Text>
           </View>
 
+          {/* Card — Nivel de Confianza */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Nivel De Confianza</Text>
             <View style={styles.progressWrap}>
-              <View style={styles.progressPill}>
-                <Text style={styles.progressPillText}>
-                  {userData?.nivelConfianza}%
-                </Text>
-              </View>
               <View style={styles.progressTrack}>
                 <View
                   style={[
-                    styles.progressFillBase,
+                    styles.progressFill,
                     { width: `${userData?.nivelConfianza ?? 0}%` },
                   ]}
-                >
-                  <View style={styles.progressFillAccent} />
-                </View>
+                />
+              </View>
+              <View style={styles.scoreRow}>
+                <Text style={styles.scoreText}>
+                  {userData?.nivelConfianza} pts
+                </Text>
               </View>
             </View>
-            <Text style={styles.confidenceBadge}>¡Excelente Cliente!</Text>
+            <Text style={[styles.confidenceBadge, { color: userData?.nivelConfianzaColor }]}>
+              {userData?.nivelConfianzaLabel}
+            </Text>
             <Text style={styles.motivationalText}>
               Paga A Tiempo Para Mantener Tu Crédito
             </Text>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Ultimos Movimientos</Text>
+          {/* Sección — Últimos Movimientos */}
+          <View style={styles.movementsSection}>
+            <Text style={styles.movementsTitle}>Ultimos Movimientos</Text>
             <View style={styles.movements}>
               {movements.map(item => (
                 <View key={item.id} style={styles.movementRow}>
                   <View
                     style={[
                       styles.iconCircle,
-                      {
-                        backgroundColor:
-                          item.tipo === 'ABONO' ? palette.highlight : palette.primary,
-                      },
+                      { backgroundColor: item.bgColor },
                     ]}
                   >
-                    <Text style={styles.iconText}>
+                    <Text style={[styles.iconText, { color: item.signColor }]}>
                       {item.tipo === 'ABONO' ? '+' : '−'}
                     </Text>
                   </View>
@@ -114,14 +130,12 @@ const VistaUsuario = () => {
             </View>
           </View>
 
-          <TouchableOpacity
-            style={styles.ctaButton}
-            onPress={handleContactStore}
-          >
+          {/* Botón CTA */}
+          <TouchableOpacity style={styles.ctaButton} onPress={handleContactStore}>
             <Text style={styles.ctaButtonText}>Contactar A La Tienda</Text>
           </TouchableOpacity>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 };

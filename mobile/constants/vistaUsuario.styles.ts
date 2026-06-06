@@ -1,194 +1,215 @@
 import { StyleSheet } from 'react-native';
-import { Colors, AppFonts } from '@/constants/theme';
+import { COLORS } from '@/constants/colors';
 
-const p = Colors.light.palette;
+const p = COLORS;
 
 export const vistaUsuarioStyles = StyleSheet.create({
+  // ── Contenedor ──
   container: {
     flex: 1,
-    backgroundColor: p.surface,
   },
   center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: p.surface,
+  },
+
+  // ── Header ──
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 18,
+  },
+  welcomeText: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: p.white,
+  },
+  welcomeSub: {
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.9)',
+    marginTop: 2,
+  },
+
+  // ── Card blanca que sube con curva ──
+  card: {
+    flex: 1,
+    backgroundColor: p.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: 'hidden',
+    paddingTop: 20,
+    paddingHorizontal: 12,
+    paddingBottom: 20,
   },
   scroll: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 100,
+    paddingBottom: 24,
   },
+
+  // ── Card — Tu Cuenta ──
   debtCard: {
-    backgroundColor: p.card,
-    borderRadius: 28,
-    paddingHorizontal: 18,
-    paddingVertical: 18,
+    backgroundColor: p.white,
+    borderRadius: 20,
+    padding: 20,
+    marginHorizontal: 4,
+    marginBottom: 12,
     shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
     elevation: 3,
-  },
-  cardTop: {
     alignItems: 'center',
-    gap: 8,
   },
   cardSubtitle: {
+    fontSize: 17,
+    fontWeight: '700',
     textAlign: 'center',
-    fontSize: 13,
-    fontFamily: AppFonts.semiBold,
     color: p.text,
+    marginBottom: 16,
   },
   totalRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
-  },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: p.successSoft2,
+    gap: 6,
   },
   totalLabel: {
-    fontSize: 12,
-    fontFamily: AppFonts.semiBold,
+    fontSize: 14,
     color: p.textMuted,
   },
   debtAmount: {
-    fontSize: 28,
-    fontFamily: AppFonts.black,
-    marginTop: 2,
+    fontSize: 38,
+    fontWeight: '800',
     color: p.text,
+    marginTop: 6,
   },
   debtDate: {
-    fontSize: 11,
-    fontFamily: AppFonts.regular,
-    marginTop: -2,
+    fontSize: 13,
     color: p.textMuted,
+    marginTop: 4,
   },
+
+  // ── Card — Nivel De Confianza ──
   section: {
-    marginTop: 16,
+    backgroundColor: p.white,
+    borderRadius: 20,
+    padding: 20,
+    marginHorizontal: 4,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   sectionLabel: {
-    fontSize: 14,
-    fontFamily: AppFonts.extraBold,
-    marginBottom: 10,
+    fontSize: 17,
+    fontWeight: '700',
     color: p.text,
+    marginBottom: 16,
   },
   progressWrap: {
-    marginTop: 10,
-  },
-  progressPill: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    marginBottom: 8,
-    backgroundColor: p.primary,
-  },
-  progressPillText: {
-    fontSize: 11,
-    fontFamily: AppFonts.black,
-    color: p.text,
+    marginBottom: 12,
   },
   progressTrack: {
-    height: 16,
-    borderRadius: 999,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: p.border,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    backgroundColor: p.track,
   },
-  progressFillBase: {
+  progressFill: {
     height: '100%',
-    borderRadius: 999,
-    overflow: 'hidden',
-    padding: 2,
+    borderRadius: 7,
     backgroundColor: p.primary,
   },
-  progressFillAccent: {
-    height: '100%',
-    width: '100%',
-    borderRadius: 999,
-    backgroundColor: p.successSoft2,
+  scoreRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 4,
   },
-  confidenceBadge: {
-    alignSelf: 'center',
-    marginTop: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
+  scoreText: {
     fontSize: 12,
-    fontFamily: AppFonts.extraBold,
-    backgroundColor: p.successSoft2,
-    color: p.text,
-  },
-  motivationalText: {
-    marginTop: 6,
-    textAlign: 'center',
-    fontSize: 11,
-    fontFamily: AppFonts.regular,
-    fontStyle: 'italic',
+    fontWeight: '600',
     color: p.textMuted,
   },
+  confidenceBadge: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+  motivationalText: {
+    fontSize: 13,
+    color: p.textMuted,
+    marginTop: 4,
+  },
+
+  // ── Últimos Movimientos ──
+  movementsSection: {
+    marginHorizontal: 4,
+    marginBottom: 8,
+  },
+  movementsTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: p.text,
+    marginBottom: 16,
+  },
   movements: {
-    marginTop: 10,
     gap: 12,
   },
   movementRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    marginBottom: 20,
   },
   iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 999,
-    alignItems: 'center',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
   },
   iconText: {
-    fontSize: 18,
-    fontFamily: AppFonts.black,
-    color: p.text,
+    fontSize: 22,
+    fontWeight: '700',
   },
   movementTextColumn: {
     flex: 1,
+    marginLeft: 14,
   },
   movementDesc: {
-    fontSize: 13,
-    fontFamily: AppFonts.semiBold,
+    fontSize: 15,
+    fontWeight: '600',
     color: p.text,
   },
   movementDate: {
-    fontSize: 10,
-    fontFamily: AppFonts.regular,
+    fontSize: 13,
+    fontWeight: '500',
+    color: p.dateColor,
     marginTop: 2,
-    color: p.textMuted,
   },
   movementAmount: {
-    fontSize: 12,
-    fontFamily: AppFonts.semiBold,
-    textAlign: 'right',
+    fontSize: 16,
+    fontWeight: '700',
     color: p.text,
   },
+
+  // ── Botón CTA ──
   ctaButton: {
-    marginTop: 18,
-    alignSelf: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 999,
+    marginHorizontal: 4,
+    marginTop: 20,
+    marginBottom: 24,
     backgroundColor: p.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
   },
   ctaButtonText: {
-    fontSize: 12,
-    fontFamily: AppFonts.extraBold,
-    color: p.text,
+    color: p.white,
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

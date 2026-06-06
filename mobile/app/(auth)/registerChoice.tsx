@@ -19,7 +19,7 @@ export default function RegisterChoiceScreen() {
   const handleContinuar = () => {
     if (!seleccion) return;
     if (seleccion === 'tendero') {
-      router.push('/(auth)/registerClientes');
+      router.push('/(auth)/registerTendero');
     } else {
       router.push('/(auth)/registerClientes');
     }

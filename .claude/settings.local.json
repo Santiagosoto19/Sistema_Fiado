@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(python predict.py)",
+      "Bash(python test_ml.py)",
+      "Bash(venv/Scripts/python *)",
+      "Bash(ipconfig)",
+      "Bash(python *)",
+      "Bash(taskkill //F //IM python.exe)"
     ]
   }
 }

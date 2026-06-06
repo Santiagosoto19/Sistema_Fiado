@@ -152,4 +152,92 @@ router.post('/registerClientes', async (req, res) => {
 });
 
 
+// POST /api/auth/registerTendero
+router.post('/registerTendero', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { nombre_completo, email, telefono, cedula, direccion, num_camara_comercio, password, id_rol } = req.body;
+
+    // 1. Validaciones de campos requeridos
+    const missing = [];
+    if (!nombre_completo || !nombre_completo.trim()) missing.push('nombre completo');
+    if (!email || !email.trim()) missing.push('email');
+    if (!telefono || !telefono.trim()) missing.push('teléfono');
+    if (!cedula || !cedula.trim()) missing.push('cédula');
+    if (!direccion || !direccion.trim()) missing.push('dirección');
+    if (!num_camara_comercio || !num_camara_comercio.trim()) missing.push('número de cámara de comercio');
+    if (!password) missing.push('contraseña');
+
+    if (missing.length > 0) {
+      return res.status(400).json({ error: `Campos requeridos: ${missing.join(', ')}` });
+    }
+
+    // 2. Validaciones de formato
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return res.status(400).json({ error: 'Email inválido' });
+    }
+
+    if (cedula.trim().length < 7) {
+      return res.status(400).json({ error: 'La cédula debe tener al menos 7 caracteres' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
+    }
+
+    await client.query('BEGIN');
+
+    // 3. Verificar si el email ya existe
+    const existeEmail = await client.query('SELECT id_usuario FROM usuario WHERE email = $1', [email.trim()]);
+    if (existeEmail.rows.length > 0) {
+      return res.status(400).json({ error: 'El email ya está registrado' });
+    }
+
+    // 4. Verificar si la cédula (id_tendero) ya existe
+    const existeCedula = await client.query('SELECT id_tendero FROM tenderos WHERE id_tendero = $1', [cedula.trim()]);
+    if (existeCedula.rows.length > 0) {
+      return res.status(400).json({ error: 'La cédula ya está registrada' });
+    }
+
+    // 5. Hashear la contraseña
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // 6. Crear el usuario (id_rol 1 para tenderos)
+    const userResult = await client.query(
+      'INSERT INTO usuario (email, password, id_rol, estado) VALUES ($1, $2, $3, $4) RETURNING id_usuario',
+      [email.trim(), hashedPassword, id_rol || 1, 'activo']
+    );
+    const idUsuario = userResult.rows[0].id_usuario;
+
+    // 7. Crear el registro en la tabla tenderos (id_tendero = cedula)
+    await client.query(
+      'INSERT INTO tenderos (id_tendero, id_usuario, nombre, nombre_tienda, telefono, direccion, num_camara_comercio, estado) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+      [cedula.trim(), idUsuario, nombre_completo.trim(), nombre_completo.trim(), telefono.trim(), direccion.trim(), num_camara_comercio.trim(), true]
+    );
+
+    await client.query('COMMIT');
+    res.status(201).json({ message: 'Tendero registrado correctamente' });
+
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error en registro de tendero:', err);
+
+    // Manejar error de clave duplicada
+    if (err.code === '23505') {
+      if (err.detail && err.detail.includes('id_tendero')) {
+        return res.status(400).json({ error: 'La cédula ya está registrada' });
+      }
+      if (err.detail && err.detail.includes('email')) {
+        return res.status(400).json({ error: 'El email ya está registrado' });
+      }
+      return res.status(400).json({ error: 'El registro ya existe' });
+    }
+
+    res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;
