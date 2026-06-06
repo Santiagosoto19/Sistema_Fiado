@@ -199,7 +199,7 @@ export default function AddCreditScreen() {
             <View style={[
               styles.scoringCard,
               styles.scoringCardBorder,
-              scoring && { borderLeftColor: getRiesgoColor(scoring.nivel_riesgo) },
+              scoring?.nivel_riesgo && { borderLeftColor: getRiesgoColor(scoring.nivel_riesgo) },
             ]}>
               {loadingScoring ? (
                 <ActivityIndicator color={COLORS.primary} />
@@ -210,69 +210,88 @@ export default function AddCreditScreen() {
                     <Text style={styles.scoringTitle}>Recomendación IA</Text>
                   </View>
 
-                  {scoring.total_creditos > 0 ? (
+                  {scoring.estado === 'cliente_no_existe' ? (
+                    <View style={styles.iaEmptyState}>
+                      <AlertCircle size={32} color="#FF5252" />
+                      <Text style={[styles.iaEmptyTitle, { color: '#FF5252' }]}>Cliente no registrado</Text>
+                      <Text style={styles.iaEmptyText}>{scoring.mensaje}</Text>
+                    </View>
+                  ) : scoring.estado === 'cliente_sin_vinculo' ? (
+                    <View style={styles.iaEmptyState}>
+                      <AlertCircle size={32} color="#FFA000" />
+                      <Text style={[styles.iaEmptyTitle, { color: '#FFA000' }]}>Cliente sin vincular</Text>
+                      {scoring.nombre ? (
+                        <Text style={[styles.iaEmptyText, { fontWeight: '700', marginBottom: 4 }]}>
+                          {scoring.nombre}
+                        </Text>
+                      ) : null}
+                      <Text style={styles.iaEmptyText}>{scoring.mensaje}</Text>
+                    </View>
+                  ) : (
                     <>
                       <View style={styles.scoreVisualRow}>
                         <View style={[styles.scoreCircle, { borderColor: getRiesgoColor(scoring.nivel_riesgo) }]}>
                           <Text style={[styles.scoreCircleText, { color: getRiesgoColor(scoring.nivel_riesgo) }]}>
-                            {scoring.puntaje}
+                            {scoring.puntaje ?? 0}
                           </Text>
                           <Text style={styles.scoreCircleLabel}>/100</Text>
                         </View>
                         <View style={styles.scoreInfoColumn}>
                           <View style={[styles.badgeRiesgo, { backgroundColor: getRiesgoColor(scoring.nivel_riesgo) + '20' }]}>
                             <Text style={[styles.badgeRiesgoText, { color: getRiesgoColor(scoring.nivel_riesgo) }]}>
-                              {scoring.nivel_riesgo.charAt(0).toUpperCase() + scoring.nivel_riesgo.slice(1)}
+                              {(scoring.nivel_riesgo ?? 'medio').charAt(0).toUpperCase() + (scoring.nivel_riesgo ?? 'medio').slice(1)}
                             </Text>
                           </View>
                           <View style={styles.limiteRow}>
                             <Text style={styles.limiteLabel}>Límite sugerido:</Text>
                             <Text style={styles.limiteValue}>
-                              ${scoring.limite_sugerido.toLocaleString('es-CO')}
+                              ${(scoring.limite_sugerido ?? 0).toLocaleString('es-CO')}
                             </Text>
                           </View>
                           <View style={styles.limiteRow}>
                             <Text style={styles.limiteLabel}>Confianza:</Text>
                             <Text style={styles.limiteValue}>
-                              {scoring.confianza}%
+                              {scoring.confianza ?? 0}%
                             </Text>
                           </View>
                         </View>
                       </View>
 
-                      <View style={styles.miniStatsRow}>
-                        <View style={styles.miniStatCard}>
-                          <Receipt size={16} color={COLORS.primary} />
-                          <Text style={styles.miniStatValue}>{scoring.total_creditos}</Text>
-                          <Text style={styles.miniStatLabel}>Créditos</Text>
-                        </View>
-                        <View style={styles.miniStatCard}>
-                          <Wallet size={16} color={COLORS.primary} />
-                          <Text style={styles.miniStatValue}>
-                            ${scoring.total_deuda.toLocaleString('es-CO')}
-                          </Text>
-                          <Text style={styles.miniStatLabel}>Deuda</Text>
-                        </View>
-                        {scoring.creditos_vencidos > 0 && (
-                          <View style={[styles.miniStatCard, { backgroundColor: '#FFF0F0' }]}>
-                            <AlertCircle size={16} color="#FF5252" />
-                            <Text style={[styles.miniStatValue, { color: '#FF5252' }]}>
-                              {scoring.creditos_vencidos}
-                            </Text>
-                            <Text style={[styles.miniStatLabel, { color: '#FF5252' }]}>Vencidos</Text>
+                      {scoring.total_creditos > 0 ? (
+                        <View style={styles.miniStatsRow}>
+                          <View style={styles.miniStatCard}>
+                            <Receipt size={16} color={COLORS.primary} />
+                            <Text style={styles.miniStatValue}>{scoring.total_creditos}</Text>
+                            <Text style={styles.miniStatLabel}>Créditos</Text>
                           </View>
-                        )}
-                      </View>
+                          <View style={styles.miniStatCard}>
+                            <Wallet size={16} color={COLORS.primary} />
+                            <Text style={styles.miniStatValue}>
+                              ${scoring.total_deuda.toLocaleString('es-CO')}
+                            </Text>
+                            <Text style={styles.miniStatLabel}>Deuda</Text>
+                          </View>
+                          {scoring.creditos_vencidos > 0 && (
+                            <View style={[styles.miniStatCard, { backgroundColor: '#FFF0F0' }]}>
+                              <AlertCircle size={16} color="#FF5252" />
+                              <Text style={[styles.miniStatValue, { color: '#FF5252' }]}>
+                                {scoring.creditos_vencidos}
+                              </Text>
+                              <Text style={[styles.miniStatLabel, { color: '#FF5252' }]}>Vencidos</Text>
+                            </View>
+                          )}
+                        </View>
+                      ) : (
+                        <View style={styles.iaEmptyState}>
+                          <AlertCircle size={32} color={COLORS.textMuted} />
+                          <Text style={styles.iaEmptyTitle}>No tienes créditos asociados con este cliente</Text>
+                          <Text style={styles.iaEmptyText}>
+                            Este cliente no tiene ningún crédito registrado a tu nombre como tendero.{'\n'}
+                            Puedes crear el primero con un monto inicial de hasta ${(scoring.limite_sugerido ?? 0).toLocaleString('es-CO')}.
+                          </Text>
+                        </View>
+                      )}
                     </>
-                  ) : (
-                    <View style={styles.iaEmptyState}>
-                      <AlertCircle size={32} color={COLORS.textMuted} />
-                      <Text style={styles.iaEmptyTitle}>No tienes créditos asociados con este cliente</Text>
-                      <Text style={styles.iaEmptyText}>
-                        Este cliente no tiene ningún crédito registrado a tu nombre como tendero.{'\n'}
-                        Puedes crear el primero con un monto inicial de hasta ${scoring.limite_sugerido.toLocaleString('es-CO')}.
-                      </Text>
-                    </View>
                   )}
                 </>
               ) : (

@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../config/database');
 const authMiddleware = require('../middleware/auth');
+const { mapScoringRow } = require('../utils/scoringUtils');
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -108,12 +109,7 @@ router.get('/me', async (req, res) => {
         telefono: tienda.telefono,
         direccion: tienda.direccion
       } : null,
-      scoring: scoring.rows[0] ? {
-        puntaje: scoring.rows[0].puntaje,
-        nivel_riesgo: scoring.rows[0].nivel_riesgo,
-        limite_sugerido: parseFloat(scoring.rows[0].limite_sugerido),
-        fecha_calculo: scoring.rows[0].fecha_calculo
-      } : null,
+      scoring: scoring.rows[0] ? mapScoringRow(scoring.rows[0]) : null,
       totales: {
         total_deuda: parseFloat(totales.rows[0].total_deuda) || 0,
         total_creditos: parseInt(totales.rows[0].total_creditos) || 0,
@@ -178,13 +174,7 @@ router.get('/:id', async (req, res) => {
         telefono: tienda.telefono,
         direccion: tienda.direccion
       } : null,
-      scoring: scoring.rows[0] ? {
-        puntaje: scoring.rows[0].puntaje,
-        nivel_riesgo: scoring.rows[0].nivel_riesgo,
-        confianza: scoring.rows[0].confianza,
-        limite_sugerido: parseFloat(scoring.rows[0].limite_sugerido),
-        fecha_calculo: scoring.rows[0].fecha_calculo
-      } : null,
+      scoring: scoring.rows[0] ? mapScoringRow(scoring.rows[0]) : null,
       totales: {
         total_deuda: parseFloat(totales.rows[0].total_deuda) || 0,
         total_creditos: parseInt(totales.rows[0].total_creditos) || 0,
