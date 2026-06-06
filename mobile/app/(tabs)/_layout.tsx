@@ -20,19 +20,14 @@ export default function TabLayout() {
           AsyncStorage.getItem('usuario')
         ]);
 
-        console.log('DEBUG - tenderoRaw:', tenderoRaw);
-        console.log('DEBUG - usuarioRaw:', usuarioRaw);
 
-        // 1. Si existe el objeto tendero, es tendero fijo
         if (tenderoRaw && tenderoRaw !== 'null') {
           setIsTendero(true);
           return;
         }
 
-        // 2. Si no hay tendero, verificamos el rol en el objeto usuario (id_rol 1 suele ser tendero/admin)
         if (usuarioRaw) {
           const user = JSON.parse(usuarioRaw);
-          // Usamos == para que compare "1" y 1 por igual
           if (user.id_rol == 1) {
             setIsTendero(true);
             return;
@@ -41,7 +36,6 @@ export default function TabLayout() {
 
         setIsTendero(false);
       } catch (e) {
-        console.error('Error verificando rol:', e);
         setIsTendero(false);
       }
     };
@@ -78,7 +72,7 @@ export default function TabLayout() {
         name="dashboard"
         options={{
           title: 'Movs',
-          href: isTendero ? undefined : null, 
+          href: isTendero ? undefined : null,
           tabBarIcon: ({ color }) => <MaterialIcons size={26} name="bar-chart" color={color} />,
         }}
       />
@@ -96,12 +90,12 @@ export default function TabLayout() {
         name="vistaUsuario"
         options={{
           title: 'Inicio',
-          href: !isTendero ? undefined : null, 
+          href: !isTendero ? undefined : null,
           tabBarIcon: ({ color }) => <MaterialIcons size={26} name="home" color={color} />,
         }}
       />
 
-      
+
       <Tabs.Screen
         name="wallet"
         options={{
@@ -111,7 +105,7 @@ export default function TabLayout() {
         }}
       />
 
-    {/* Comunes */}
+      {/* Comunes */}
       <Tabs.Screen
         name="profile"
         options={{

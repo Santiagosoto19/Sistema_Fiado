@@ -10,7 +10,7 @@ export default function Index() {
       const token = await AsyncStorage.getItem('token');
 
       if (!token) {
-        setTarget('/login');
+        setTarget('/(auth)/home');
         return;
       }
 

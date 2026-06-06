@@ -7,7 +7,7 @@ const API_URL = CONFIG.API_URL;
 export type EstadoCliente = 'al_dia' | 'mora' | 'proximo' | 'sin_deuda';
 
 export type Cliente = {
-  id_cliente: number;
+  id_cliente: string;
   nombre_completo: string;
   initials: string;
   bgColor: string;
@@ -24,7 +24,13 @@ const getInitials = (nombre: string) =>
 
 const avatarColors = ['#4CAF50', '#FFC107', '#FF5252', '#2196F3', '#9C27B0', '#FF9800'];
 
-const getAvatarColor = (id: number) => avatarColors[id % avatarColors.length];
+const getAvatarColor = (str: string) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return avatarColors[Math.abs(hash) % avatarColors.length];
+};
 
 export const useClients = (token: string | null) => {
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -53,14 +59,12 @@ export const useClients = (token: string | null) => {
       const json = await res.json();
 
       if (!res.ok) {
-        console.error('Error del servidor:', json.error || 'Desconocido');
         return;
       }
 
       const dataArray = Array.isArray(json) ? json : (json.data && Array.isArray(json.data) ? json.data : null);
 
       if (!dataArray) {
-        console.error('La respuesta no es un arreglo válido:', json);
         return;
       }
 
@@ -78,7 +82,7 @@ export const useClients = (token: string | null) => {
       setClientes(mapped);
       setTotal(mapped.length);
     } catch (err) {
-      console.error('Error de conexión:', err);
+      // Error de conexión silenciado
     } finally {
       setLoading(false);
     }
@@ -108,7 +112,7 @@ export const useClients = (token: string | null) => {
     // TODO: router.push('/clients/new');
   };
 
-  const handleClientePress = (id: number) => {
+  const handleClientePress = (id: string) => {
     // TODO: router.push(`/clients/${id}`);
   };
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { CONFIG } from '@/config/config';
+import { router } from 'expo-router';
 
 const API_URL = CONFIG.API_URL;
 
@@ -66,12 +67,17 @@ export const useDashboard = (token: string) => {
     fetchDashboard();
   }, [token]);
  
-  const fetchDashboard = async () => {
+  const fetchDashboard = async (overrideToken?: string) => {
+    const effectiveToken = overrideToken || token;
+    if (!effectiveToken) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`${API_URL}/dashboard`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${effectiveToken}` },
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Error al cargar');
@@ -117,7 +123,7 @@ export const useDashboard = (token: string) => {
     if (mostrarBusqueda) setBusqueda('');
   };
  
-  const handleNuevoCredito  = () => { /* TODO: router.push('/credits/new') */ };
+  const handleNuevoCredito  = () => { router.push('/addcredit'); };
   const handleRegistrarPago = () => { /* TODO: router.push('/payments/new') */ };
   const handleBell          = () => { /* TODO: router.push('/alerts') */ };
  

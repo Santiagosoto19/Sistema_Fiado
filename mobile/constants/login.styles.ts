@@ -13,13 +13,13 @@ export const loginStyles = StyleSheet.create({
   },
   title: {
     fontSize: 34,
-    fontWeight: '700',
+    fontFamily: 'Poppins_700Bold',
     color: COLORS.white,
     lineHeight: 42,
   },
   titleBrand: {
     fontSize: 34,
-    fontWeight: '700',
+    fontFamily: 'Poppins_700Bold',
     color: COLORS.white,
   },
   // Card blanca con esquinas redondeadas solo arriba
@@ -37,7 +37,7 @@ export const loginStyles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: 'Poppins_600SemiBold',
     color: COLORS.text,
     marginBottom: 8,
   },
@@ -47,6 +47,7 @@ export const loginStyles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingVertical: 15,
     fontSize: 15,
+    fontFamily: 'Poppins_400Regular',
     color: COLORS.text,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -65,6 +66,7 @@ export const loginStyles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingVertical: 15,
     fontSize: 15,
+    fontFamily: 'Poppins_400Regular',
     color: COLORS.text,
   },
   eyeBtn: {
@@ -86,7 +88,7 @@ export const loginStyles = StyleSheet.create({
   btnPrimaryText: {
     color: COLORS.white,
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: 'Poppins_600SemiBold',
     letterSpacing: 0.3,
   },
   forgotBtn: {
@@ -96,6 +98,7 @@ export const loginStyles = StyleSheet.create({
   forgotText: {
     color: COLORS.textMuted,
     fontSize: 13,
+    fontFamily: 'Poppins_400Regular',
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -111,12 +114,13 @@ export const loginStyles = StyleSheet.create({
   btnOutlineText: {
     color: COLORS.text,
     fontSize: 16,
-    fontWeight: '500',
+    fontFamily: 'Poppins_600SemiBold',
   },
   orText: {
     textAlign: 'center',
     color: COLORS.textMuted,
     fontSize: 12,
+    fontFamily: 'Poppins_400Regular',
     marginBottom: 14,
   },
   googleBtn: {
@@ -132,7 +136,7 @@ export const loginStyles = StyleSheet.create({
   },
   googleIcon: {
     fontSize: 20,
-    fontWeight: '700',
+    fontFamily: 'Poppins_700Bold',
     color: COLORS.text,
   },
   footer: {
@@ -144,10 +148,11 @@ export const loginStyles = StyleSheet.create({
   footerText: {
     color: COLORS.textMuted,
     fontSize: 13,
+    fontFamily: 'Poppins_400Regular',
   },
   footerLink: {
     color: COLORS.primary,
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: 'Poppins_600SemiBold',
   },
 });

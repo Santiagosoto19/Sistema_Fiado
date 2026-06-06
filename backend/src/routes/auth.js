@@ -102,33 +102,41 @@ router.post('/registerClientes', async (req, res) => {
     const { nombre_completo, email, telefono, cedula, direccion, password, id_rol } = req.body;
 
     // 1. Validaciones básicas
-    if (!email || !password || !nombre_completo) {
-      return res.status(400).json({ error: 'Email, contraseña y nombre son requeridos' });
+    if (!email || !password || !nombre_completo || !cedula) {
+      return res.status(400).json({ error: 'Email, contraseña, nombre y cédula son requeridos' });
     }
 
     await client.query('BEGIN');
 
-    // 2. Verificar si el usuario ya existe
-    const existe = await client.query('SELECT id_usuario FROM usuario WHERE email = $1', [email]);
-    if (existe.rows.length > 0) {
+    // 2. Verificar si el email ya existe
+    const existeEmail = await client.query('SELECT id_usuario FROM usuario WHERE email = $1', [email]);
+    if (existeEmail.rows.length > 0) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: 'El email ya está registrado' });
     }
 
-    // 3. Hashear la contraseña
+    // 3. Verificar si la cédula ya existe como id_cliente
+    const existeCedula = await client.query('SELECT id_cliente FROM clientes WHERE id_cliente = $1', [cedula]);
+    if (existeCedula.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'La cédula ya está registrada' });
+    }
+
+    // 4. Hashear la contraseña
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 4. Crear el usuario (id_rol 2 suele ser para clientes)
+    // 5. Crear el usuario (id_rol 2 = cliente)
     const userResult = await client.query(
       'INSERT INTO usuario (email, password, id_rol, estado) VALUES ($1, $2, $3, $4) RETURNING id_usuario',
       [email, hashedPassword, id_rol || 2, 'activo']
     );
     const idUsuario = userResult.rows[0].id_usuario;
 
-    // 5. Crear el registro en la tabla clientes
+    // 6. Crear el registro en clientes usando la cédula como id_cliente
     await client.query(
-      'INSERT INTO clientes (id_usuario, nombre_completo, telefono, direccion) VALUES ($1, $2, $3, $4)',
-      [idUsuario, nombre_completo, telefono, direccion]
+      'INSERT INTO clientes (id_cliente, id_usuario, nombre_completo, telefono, direccion, estado) VALUES ($1, $2, $3, $4, $5, $6)',
+      [cedula, idUsuario, nombre_completo, telefono, direccion, 'activo']
     );
 
     await client.query('COMMIT');

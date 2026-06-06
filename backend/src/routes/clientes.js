@@ -64,8 +64,8 @@ router.get('/:id', async (req, res) => {
     const cliente = await pool.query(`
       SELECT c.*, tc.estado as relacion_estado
       FROM clientes c
-      JOIN tendero_cliente tc ON c.id_cliente = tc.id_cliente
-      WHERE c.id_cliente = $1 AND tc.id_tendero = $2
+      LEFT JOIN tendero_cliente tc ON c.id_cliente = tc.id_cliente AND tc.id_tendero = $2
+      WHERE c.id_cliente = $1
     `, [id, idTendero]);
 
     if (cliente.rows.length === 0) {
@@ -89,10 +89,12 @@ router.get('/:id', async (req, res) => {
       telefono: cliente.rows[0].telefono,
       direccion: cliente.rows[0].direccion,
       estado: cliente.rows[0].estado,
+      relacion_estado: cliente.rows[0].relacion_estado,
       created_at: cliente.rows[0].created_at,
       scoring: scoring.rows[0] ? {
         puntaje: scoring.rows[0].puntaje,
         nivel_riesgo: scoring.rows[0].nivel_riesgo,
+        confianza: scoring.rows[0].confianza,
         limite_sugerido: parseFloat(scoring.rows[0].limite_sugerido),
         fecha_calculo: scoring.rows[0].fecha_calculo
       } : null,
@@ -124,8 +126,8 @@ router.post('/', async (req, res) => {
 
     // Verificar si ya existe un cliente con la misma identificación
     const existe = await client.query(
-      'SELECT id_cliente FROM clientes WHERE id_usuario = $1',
-      [idUsuario]
+      'SELECT id_cliente FROM clientes WHERE id_cliente = $1',
+      [identificacion]
     );
 
     let clienteId;
@@ -135,9 +137,9 @@ router.post('/', async (req, res) => {
     } else {
       // Crear nuevo cliente
       const result = await client.query(`
-        INSERT INTO clientes (id_usuario, nombre_completo, telefono, direccion)
-        VALUES ($1, $2, $3, $4) RETURNING id_cliente
-      `, [idUsuario, nombre, telefono, direccion]);
+        INSERT INTO clientes (id_cliente, id_usuario, nombre_completo, telefono, direccion, estado)
+        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id_cliente
+      `, [identificacion, idUsuario, nombre, telefono, direccion, 'activo']);
       clienteId = result.rows[0].id_cliente;
     }
 
@@ -265,7 +267,7 @@ router.get('/:id/historial', async (req, res) => {
       });
     }
 
-    res.json({ cliente_id: parseInt(id), historial });
+    res.json({ cliente_id: id, historial });
   } catch (err) {
     console.error('Error en historial:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -296,7 +298,7 @@ router.get('/:id/pagos', async (req, res) => {
     `, [id, idTendero]);
 
     res.json({
-      cliente_id: parseInt(id),
+      cliente_id: id,
       pagos: pagos.rows.map(p => ({
         id_abono: p.id_abono,
         monto: parseFloat(p.monto),

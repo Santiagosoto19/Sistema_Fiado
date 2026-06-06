@@ -91,7 +91,7 @@ router.get('/cliente/:clienteId', async (req, res) => {
     `, [clienteId, idTendero]);
 
     res.json({
-      cliente_id: parseInt(clienteId),
+      cliente_id: clienteId,
       cartera_total: parseFloat(totales.rows[0].cartera_total) || 0,
       saldo_pendiente: parseFloat(totales.rows[0].saldo_pendiente) || 0,
       monto_en_mora: parseFloat(totales.rows[0].monto_en_mora) || 0,

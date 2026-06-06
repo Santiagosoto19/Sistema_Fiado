@@ -39,7 +39,6 @@ app.use('/api/scoring', scoringRoutes);
 
 // Webhook ejemplo (n8n)
 app.post('/webhooks/test', (req, res) => {
-  console.log('Webhook recibido:', req.body);
   res.json({ received: true });
 });
 

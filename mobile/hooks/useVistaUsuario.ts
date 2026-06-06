@@ -89,7 +89,6 @@ export const useVistaUsuario = (token: string | null) => {
 
       setMovements(sortedMovements);
     } catch (error: any) {
-      console.error('Error fetching user data:', error);
       Alert.alert('Error cargando datos', error.message || 'No se pudieron cargar los datos de la cuenta.');
     } finally {
       setLoading(false);

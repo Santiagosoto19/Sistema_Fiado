@@ -84,7 +84,7 @@ export default function ClientsScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
       <SafeAreaView style={styles.safe}>
         <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
 
@@ -141,7 +141,7 @@ export default function ClientsScreen() {
             : (
               <FlatList
                 data={clientes}
-                keyExtractor={item => item.id_cliente.toString()}
+                keyExtractor={item => item.id_cliente}
                 contentContainerStyle={styles.listContent}
                 showsVerticalScrollIndicator={false}
                 renderItem={({ item }) => (

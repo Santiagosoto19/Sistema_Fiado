@@ -119,14 +119,20 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'clienteId, montoTotal y fechaLimitePago son requeridos' });
     }
 
-    // Verificar que el cliente pertenece al tendero
-    const verifica = await pool.query(`
-      SELECT 1 FROM tendero_cliente WHERE id_tendero = $1 AND id_cliente = $2 AND estado = 'activo'
-    `, [idTendero, clienteId]);
-
-    if (verifica.rows.length === 0) {
+    // 1. Verificar que el cliente existe en el sistema
+    const clienteExiste = await pool.query(
+      `SELECT 1 FROM clientes WHERE id_cliente = $1`, [clienteId]
+    );
+    if (clienteExiste.rows.length === 0) {
       return res.status(404).json({ error: 'Cliente no encontrado' });
     }
+
+    // 2. Asociar automáticamente al tendero con el cliente si no existe la relación
+    await pool.query(`
+      INSERT INTO tendero_cliente (id_tendero, id_cliente, estado)
+      VALUES ($1, $2, 'activo')
+      ON CONFLICT (id_tendero, id_cliente) DO NOTHING
+    `, [idTendero, clienteId]);
 
     const fechaCredito = new Date().toISOString().split('T')[0];
 
@@ -199,7 +205,7 @@ router.get('/cliente/:clienteId', async (req, res) => {
     `, [clienteId, idTendero]);
 
     res.json({
-      cliente_id: parseInt(clienteId),
+      cliente_id: clienteId,
       creditos: creditos.rows.map(c => ({
         id_credito: c.id_credito,
         monto_total: parseFloat(c.monto_total),

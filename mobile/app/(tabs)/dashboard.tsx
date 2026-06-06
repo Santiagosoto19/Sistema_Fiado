@@ -28,10 +28,17 @@ export default function HomeScreen() {
   const [token, setToken] = useState<string | null>(null);
   const [tendero, setTendero] = useState<any>(null);
   const searchAnim = useRef(new Animated.Value(0)).current;
+  const isFirstFocus = useRef(true);
 
 useFocusEffect(
   useCallback(() => {
-    AsyncStorage.getItem('token').then(t => setToken(t));
+    AsyncStorage.getItem('token').then(t => {
+      setToken(t);
+      if (t && !isFirstFocus.current) {
+        refetch(t);
+      }
+      isFirstFocus.current = false;
+    });
     AsyncStorage.getItem('tendero').then(t => {
       if (t) setTendero(JSON.parse(t));
     });
@@ -43,6 +50,7 @@ useFocusEffect(
     busqueda, setBusqueda, mostrarBusqueda, toggleBusqueda,
     filtroFecha, setFiltroFecha,
     handleNuevoCredito, handleRegistrarPago, handleBell,
+    refetch,
   } = useDashboard(token ?? '');
 
   // Animación de la barra de búsqueda

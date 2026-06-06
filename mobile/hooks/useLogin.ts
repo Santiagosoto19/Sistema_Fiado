@@ -13,7 +13,7 @@ type Usuario = {
 };
 
 type Tendero = {
-  id_tendero: number;
+  id_tendero: string;
   nombre: string;
   nombre_tienda: string;
 } | null;
@@ -25,10 +25,10 @@ type LoginResponse = {
 };
 
 export const useLogin = () => {
-  const [email, setEmail]    = useState('');
-  const [password, setPassword]         = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading]           = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const togglePassword = () => setShowPassword(prev => !prev);
 
@@ -88,7 +88,7 @@ export const useLogin = () => {
   };
 
   const handleRegister = () => {
-    // TODO: router.push('/auth/register');
+    router.push('/(auth)/registerChoice');
   };
 
   const handleGoogleLogin = () => {

@@ -64,7 +64,7 @@ export default function RootLayout() {
         const isProtected = inTabsGroup || inVistaUsuario;
 
         if (!token && isProtected) {
-          router.replace('/login' as any);
+          router.replace('/(auth)/home' as any);
           return;
         }
 
@@ -114,6 +114,7 @@ return (
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="addcredit" options={{ presentation: 'modal' }} />
           </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>
