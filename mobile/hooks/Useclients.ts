@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { router } from 'expo-router';
 import { CONFIG } from '@/config/config';
 
 const API_URL = CONFIG.API_URL;
@@ -113,7 +114,10 @@ export const useClients = (token: string | null) => {
   };
 
   const handleClientePress = (id: string) => {
-    // TODO: router.push(`/clients/${id}`);
+    router.push({
+      pathname: '/(tabs)/perfilCliente',
+      params: { id: String(id) },
+    });
   };
 
   return {

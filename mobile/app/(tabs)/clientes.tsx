@@ -88,7 +88,6 @@ export default function ClientsScreen() {
       <SafeAreaView style={styles.safe}>
         <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
 
-        {/* Header */}
         <View style={styles.header}>
           <View style={{ width: 40 }} />
           <Text style={styles.headerTitle}>Clientes</Text>
@@ -97,16 +96,12 @@ export default function ClientsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Sub header */}
         <View style={styles.subHeader}>
           <BadgeCheck size={16} color={COLORS.white} />
           <Text style={styles.subHeaderText}> {total} Clientes Registrados</Text>
         </View>
 
-        {/* Card blanca */}
         <View style={styles.card}>
-
-          {/* Buscador */}
           <View style={styles.searchRow}>
             <TextInput
               style={styles.searchInput}
@@ -120,7 +115,6 @@ export default function ClientsScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Filtros */}
           <View style={styles.filtersRow}>
             {FILTROS.map(f => (
               <TouchableOpacity
@@ -135,7 +129,6 @@ export default function ClientsScreen() {
             ))}
           </View>
 
-          {/* Lista */}
           {loading
             ? <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 40 }} />
             : (
@@ -159,7 +152,6 @@ export default function ClientsScreen() {
             )
           }
 
-          {/* Botón registrar dentro de la card */}
           <TouchableOpacity style={styles.btnRegistrar} onPress={handleNuevoCliente}>
             <Text style={styles.btnRegistrarText}>+ Registrar Nuevo Cliente</Text>
           </TouchableOpacity>
