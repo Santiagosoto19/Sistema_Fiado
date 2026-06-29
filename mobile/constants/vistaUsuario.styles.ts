@@ -108,7 +108,13 @@ export const vistaUsuarioStyles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: p.text,
-    marginBottom: 16,
+    marginBottom: 8,
+  },
+  riesgoResumen: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: p.textMuted,
+    marginBottom: 12,
   },
   progressWrap: {
     marginBottom: 12,

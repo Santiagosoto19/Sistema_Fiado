@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { vistaUsuarioStyles as styles } from '@/constants/vistaUsuario.styles';
 import { COLORS } from '@/constants/colors';
 import { useVistaUsuario } from '@/hooks/useVistaUsuario';
+import { formatNivelRiesgo, getRiesgoColor } from '@/utils/scoring';
 
 const VistaUsuario = () => {
   const [token, setToken] = useState<string | null>(null);
@@ -76,21 +77,27 @@ const VistaUsuario = () => {
             <Text style={styles.debtDate}>Pagar Antes Del {userData?.fechaLimite}</Text>
           </View>
 
-          {/* Card — Nivel de Confianza */}
+          {/* Card — Perfil IA */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Nivel De Confianza</Text>
+            <Text style={styles.sectionLabel}>Perfil Crediticio IA</Text>
+            <Text style={styles.riesgoResumen}>
+              Riesgo {formatNivelRiesgo(userData?.nivelRiesgo)} · Confianza {userData?.nivelConfianza ?? 0}%
+            </Text>
             <View style={styles.progressWrap}>
               <View style={styles.progressTrack}>
                 <View
                   style={[
                     styles.progressFill,
-                    { width: `${userData?.nivelConfianza ?? 0}%` },
+                    {
+                      width: `${userData?.nivelConfianza ?? 0}%`,
+                      backgroundColor: getRiesgoColor(userData?.nivelRiesgo),
+                    },
                   ]}
                 />
               </View>
               <View style={styles.scoreRow}>
                 <Text style={styles.scoreText}>
-                  {userData?.nivelConfianza} pts
+                  Confianza del modelo: {userData?.nivelConfianza ?? 0}%
                 </Text>
               </View>
             </View>

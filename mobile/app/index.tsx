@@ -15,17 +15,19 @@ export default function Index() {
       }
 
       const tenderoRaw = await AsyncStorage.getItem('tendero');
-      if (!tenderoRaw) {
-        setTarget('/(tabs)/vistaUsuario');
-        return;
+      const usuarioRaw = await AsyncStorage.getItem('usuario');
+
+      let isTendero = false;
+      if (usuarioRaw) {
+        try {
+          const user = JSON.parse(usuarioRaw);
+          isTendero = user.id_rol == 1;
+        } catch {}
+      } else if (tenderoRaw && tenderoRaw !== 'null') {
+        isTendero = true;
       }
 
-      try {
-        const tendero = JSON.parse(tenderoRaw);
-        setTarget(tendero ? '/(tabs)/dashboard' : '/(tabs)/vistaUsuario');
-      } catch {
-        setTarget('/(tabs)/vistaUsuario');
-      }
+      setTarget(isTendero ? '/(tabs)/dashboard' : '/(tabs)/vistaUsuario');
     };
 
     checkLogin();

@@ -14,6 +14,6 @@ export default function LogoutScreen() {
   }, []);
 
   if (!done) return null;
-  return <Redirect href="/login" />;
+  return <Redirect href="/(auth)/login" />;
 }
 

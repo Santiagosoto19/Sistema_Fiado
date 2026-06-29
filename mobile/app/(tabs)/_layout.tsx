@@ -1,49 +1,68 @@
 import { Tabs } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from 'expo-router';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { AppFonts, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { COLORS } from '@/constants/colors';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme ?? 'light'].palette ?? Colors.light.palette;
   const [isTendero, setIsTendero] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    const checkRole = async () => {
-      try {
-        const [tenderoRaw, usuarioRaw] = await Promise.all([
-          AsyncStorage.getItem('tendero'),
-          AsyncStorage.getItem('usuario')
-        ]);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
 
+      const checkRole = async () => {
+        try {
+          const [tenderoRaw, usuarioRaw] = await Promise.all([
+            AsyncStorage.getItem('tendero'),
+            AsyncStorage.getItem('usuario'),
+          ]);
 
-        if (tenderoRaw && tenderoRaw !== 'null') {
-          setIsTendero(true);
-          return;
-        }
+          if (!active) return;
 
-        if (usuarioRaw) {
-          const user = JSON.parse(usuarioRaw);
-          if (user.id_rol == 1) {
+          if (usuarioRaw) {
+            const user = JSON.parse(usuarioRaw);
+            if (user.id_rol == 2) {
+              setIsTendero(false);
+              return;
+            }
+            if (user.id_rol == 1) {
+              setIsTendero(true);
+              return;
+            }
+          }
+
+          if (tenderoRaw && tenderoRaw !== 'null') {
             setIsTendero(true);
             return;
           }
+
+          setIsTendero(false);
+        } catch {
+          if (active) setIsTendero(false);
         }
+      };
 
-        setIsTendero(false);
-      } catch (e) {
-        setIsTendero(false);
-      }
-    };
-    checkRole();
-  }, []);
+      checkRole();
+      return () => { active = false; };
+    }, [])
+  );
 
-  // Mientras carga el rol, no mostramos nada para evitar saltos visuales
-  if (isTendero === null) return null;
+  if (isTendero === null) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primary }}>
+        <ActivityIndicator size="large" color={COLORS.white} />
+      </View>
+    );
+  }
 
   return (
     <Tabs
@@ -84,6 +103,16 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <MaterialIcons size={26} name="people" color={color} />,
         }}
       />
+
+      <Tabs.Screen
+          name="pagos"
+          options={{
+            title: 'Pagos',
+            href: isTendero ? undefined : null,
+            tabBarIcon: ({ color }) => <MaterialIcons size={26} name="payments"
+          color={color} />,
+          }}
+        />
 
       {/* Solo para Clientes */}
       <Tabs.Screen

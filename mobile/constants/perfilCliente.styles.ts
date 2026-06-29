@@ -133,6 +133,21 @@ export const perfilClienteStyles = StyleSheet.create({
   statValueSmall: {
     fontSize: 18,
   },
+  riesgoBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 50,
+    marginBottom: 8,
+  },
+  riesgoBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  confianzaValue: {
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
 
   sectionTitle: {
     fontSize: 15,
@@ -264,4 +279,70 @@ export const perfilClienteStyles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 14,
   },
+  pagosCard: {
+      backgroundColor: COLORS.white,
+      borderRadius: 16,
+      marginBottom: 20,
+      paddingVertical: 4,
+      shadowColor: '#000',
+      shadowOpacity: 0.04,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 2,
+    },
+    pagoRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+    },
+    pagoDivider: {
+      borderBottomWidth: 1,
+      borderBottomColor: COLORS.border,
+    },
+    pagoIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: '#E8F5EE',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    },
+    pagoIconText: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: COLORS.primary,
+    },
+    pagoInfo: {
+      flex: 1,
+      marginRight: 8,
+    },
+    pagoTitulo: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: COLORS.text,
+      marginBottom: 3,
+    },
+    pagoSub: {
+      fontSize: 12,
+      color: COLORS.textMuted,
+    },
+    pagoMontoBadge: {
+      backgroundColor: '#E8F5EE',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 50,
+    },
+    pagoMontoText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: COLORS.primary,
+    },
+    pagosEmpty: {
+      textAlign: 'center',
+      color: COLORS.textMuted,
+      padding: 20,
+      fontSize: 13,
+    },
 });

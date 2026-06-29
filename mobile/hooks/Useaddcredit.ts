@@ -1,14 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Alert } from 'react-native';
 import { router } from 'expo-router';
 import { CONFIG } from '@/config/config';
+import { getRiesgoColor, mapScoringML } from '@/utils/scoring';
 
 const API_URL = CONFIG.API_URL;
-
-const formatConfianza = (valor: number | null | undefined) => {
-  if (valor == null) return 0;
-  return valor <= 1 ? Math.round(valor * 100) : Math.round(valor);
-};
 
 export type EstadoRecomendacion =
   | 'cliente_no_existe'
@@ -20,10 +16,9 @@ export type RecomendacionIA = {
   estado: EstadoRecomendacion;
   mensaje: string;
   nombre: string | null;
-  puntaje: number | null;
   limite_sugerido: number | null;
   nivel_riesgo: string | null;
-  confianza: number | null;
+  confianza: number;
   total_creditos: number;
   total_deuda: number;
   creditos_vencidos: number;
@@ -47,22 +42,24 @@ type RecomendacionResponse = {
   error?: string;
 };
 
-const mapRecomendacion = (json: RecomendacionResponse): RecomendacionIA => ({
-  estado: json.estado,
-  mensaje: json.mensaje,
-  nombre: json.nombre_completo ?? null,
-  puntaje: json.puntaje ?? null,
-  limite_sugerido: json.limite_sugerido ?? null,
-  nivel_riesgo: json.nivel_riesgo ?? null,
-  confianza: json.confianza != null ? formatConfianza(json.confianza) : null,
-  total_creditos: json.totales?.total_creditos ?? 0,
-  total_deuda: json.totales?.total_deuda ?? 0,
-  creditos_vencidos: json.totales?.creditos_vencidos ?? 0,
-  relacion_estado: json.relacion_estado ?? null,
-});
+const mapRecomendacion = (json: RecomendacionResponse): RecomendacionIA => {
+  const ml = mapScoringML(json);
+  return {
+    estado: json.estado,
+    mensaje: json.mensaje,
+    nombre: json.nombre_completo ?? null,
+    limite_sugerido: json.limite_sugerido ?? null,
+    nivel_riesgo: ml.nivel_riesgo,
+    confianza: ml.confianza,
+    total_creditos: json.totales?.total_creditos ?? 0,
+    total_deuda: json.totales?.total_deuda ?? 0,
+    creditos_vencidos: json.totales?.creditos_vencidos ?? 0,
+    relacion_estado: json.relacion_estado ?? null,
+  };
+};
 
-export const useAddCredit = (token: string, id_tendero: string) => {
-  const [usuario, setUsuario]         = useState('');
+export const useAddCredit = (token: string, id_tendero: string, initialClienteId?: string) => {
+  const [usuario, setUsuario]         = useState(initialClienteId ?? '');
   const [monto, setMonto]             = useState('');
   const [fechaLimite, setFechaLimite] = useState('');
   const [observaciones, setObservaciones] = useState('');
@@ -108,11 +105,12 @@ export const useAddCredit = (token: string, id_tendero: string) => {
     throw new Error(json.error || 'No se pudo cargar la recomendación');
   };
 
-  const buscarScoring = async () => {
-    if (!usuario.trim()) return;
+  const buscarScoring = async (clienteId?: string) => {
+    const id = (clienteId ?? usuario).trim();
+    if (!id) return;
     setLoadingScoring(true);
     try {
-      const data = await fetchRecomendacion(usuario.trim());
+      const data = await fetchRecomendacion(id);
       setScoring(mapRecomendacion(data));
     } catch (err: any) {
       Alert.alert('Error', err.message || 'No se pudo cargar la información del cliente.');
@@ -121,6 +119,31 @@ export const useAddCredit = (token: string, id_tendero: string) => {
       setLoadingScoring(false);
     }
   };
+
+  useEffect(() => {
+    if (!initialClienteId?.trim() || !token) return;
+
+    let cancelled = false;
+
+    const load = async () => {
+      setUsuario(initialClienteId.trim());
+      setLoadingScoring(true);
+      try {
+        const data = await fetchRecomendacion(initialClienteId.trim());
+        if (!cancelled) setScoring(mapRecomendacion(data));
+      } catch (err: any) {
+        if (!cancelled) {
+          Alert.alert('Error', err.message || 'No se pudo cargar la información del cliente.');
+          setScoring(null);
+        }
+      } finally {
+        if (!cancelled) setLoadingScoring(false);
+      }
+    };
+
+    load();
+    return () => { cancelled = true; };
+  }, [initialClienteId, token]);
 
   const isValidDate = (str: string) => {
     const parts = str.split('/');
@@ -218,15 +241,6 @@ export const useAddCredit = (token: string, id_tendero: string) => {
   };
 
   const handleCancelar = () => router.back();
-
-  const getRiesgoColor = (nivel: string | null) => {
-    switch (nivel?.toLowerCase()) {
-      case 'bajo':  return '#3EBF7A';
-      case 'medio': return '#FFA000';
-      case 'alto':  return '#FF5252';
-      default:      return '#7A9A85';
-    }
-  };
 
   return {
     usuario, setUsuario,

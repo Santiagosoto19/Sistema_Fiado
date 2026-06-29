@@ -1,46 +1,12 @@
 const express = require('express');
-const http = require('http');
 const pool = require('../config/database');
 const authMiddleware = require('../middleware/auth');
 const { triggerMLRetrain } = require('../utils/mlTrigger');
+const { callMLService, syncMLPrediction } = require('../utils/mlScoring');
 const { mapScoringRow, queryTotalesCreditos, queryCreditosHistorico } = require('../utils/scoringUtils');
 
 const router = express.Router();
 router.use(authMiddleware);
-
-function callMLService(clienteId) {
-  return new Promise((resolve, reject) => {
-    const postData = JSON.stringify({ id_cliente: parseInt(clienteId) });
-    const options = {
-      hostname: 'localhost',
-      port: 8000,
-      path: '/predict',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(postData),
-      },
-    };
-
-    const req = http.request(options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        try {
-          const json = JSON.parse(data);
-          if (json.error) return reject(new Error(json.error));
-          resolve(json);
-        } catch (e) {
-          reject(e);
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.write(postData);
-    req.end();
-  });
-}
 
 // GET /api/scoring/:clienteId
 router.get('/:clienteId', async (req, res) => {
@@ -64,7 +30,11 @@ router.get('/:clienteId', async (req, res) => {
       return res.status(404).json({ error: 'No existe scoring para este cliente. Ejecuta el cálculo primero.' });
     }
 
-    const mapped = mapScoringRow(scoring.rows[0]);
+    const creditosHistorico = await queryCreditosHistorico(pool, clienteId, idTendero);
+    const syncedRow = await syncMLPrediction(pool, clienteId, scoring.rows[0]);
+    const mapped = mapScoringRow(syncedRow, {
+      sinHistorialCrediticio: creditosHistorico === 0,
+    });
 
     res.json({
       id_cliente: parseInt(clienteId),
@@ -118,11 +88,25 @@ router.post('/:clienteId/calcular', async (req, res) => {
       await upsertScoring(clienteId, nivelRiesgo, ptsPuntualidad, ptsHistorial, ptsCumplimiento, ptsAntiguedad, limiteSugerido);
       triggerMLRetrain('scoring_nuevo').catch(() => {});
 
+      let rf = null;
+      try {
+        rf = await callMLService(clienteId);
+        await pool.query(`
+          UPDATE scoring
+          SET nivel_riesgo = $1, confianza = $2
+          WHERE id_scoring = (
+            SELECT id_scoring FROM scoring WHERE id_cliente = $3 ORDER BY fecha_calculo DESC LIMIT 1
+          )
+        `, [rf.nivel_riesgo, rf.confianza, clienteId]);
+      } catch (mlErr) {
+        console.error('Error guardando predicción ML (cliente nuevo):', mlErr.message);
+      }
+
       return res.json({
         message: 'Scoring calculado correctamente (cliente nuevo)',
         id_cliente: parseInt(clienteId),
         puntaje_total: puntajeTotal,
-        nivel_riesgo: nivelRiesgo,
+        nivel_riesgo: rf ? rf.nivel_riesgo : nivelRiesgo,
         limite_sugerido: limiteSugerido,
         desglose: {
           puntualidad: ptsPuntualidad,
@@ -130,7 +114,7 @@ router.post('/:clienteId/calcular', async (req, res) => {
           historial: ptsHistorial,
           antiguedad: ptsAntiguedad
         },
-        confianza: null
+        confianza: rf ? rf.confianza : null
       });
     }
 
@@ -369,26 +353,9 @@ router.get('/:clienteId/recomendacion', async (req, res) => {
       });
     }
 
-    const s = scoring.rows[0];
+    const s = await syncMLPrediction(pool, clienteId, scoring.rows[0]);
 
-    if (s.confianza == null) {
-      try {
-        const rf = await callMLService(clienteId);
-        await pool.query(`
-          UPDATE scoring
-          SET nivel_riesgo = $1, confianza = $2
-          WHERE id_scoring = (
-            SELECT id_scoring FROM scoring WHERE id_cliente = $3 ORDER BY fecha_calculo DESC LIMIT 1
-          )
-        `, [rf.nivel_riesgo, rf.confianza, clienteId]);
-        s.nivel_riesgo = rf.nivel_riesgo;
-        s.confianza = rf.confianza;
-      } catch (mlErr) {
-        console.error('Error llamando al servicio ML:', mlErr.message);
-      }
-    }
-
-    const mapped = mapScoringRow(s);
+    const mapped = mapScoringRow(s, { sinHistorialCrediticio: sinCreditoTienda });
     const totales = await queryTotalesCreditos(pool, clienteId, idTendero);
 
     let recomendacion;

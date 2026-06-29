@@ -61,7 +61,8 @@ export default function RootLayout() {
         const inAuthGroup = segment0 === '(auth)';
         const inTabsGroup = segment0 === '(tabs)';
         const inVistaUsuario = segment0 === 'vistaUsuario';
-        const isProtected = inTabsGroup || inVistaUsuario;
+        const inAddCredit = segment0 === 'addcredit';
+        const isProtected = inTabsGroup || inVistaUsuario || inAddCredit;
 
         if (!token && isProtected) {
           router.replace('/(auth)/home' as any);
@@ -76,16 +77,19 @@ export default function RootLayout() {
           
           let isTendero = false;
 
-          // 1. Verificar por objeto tendero
-          if (tenderoRaw && tenderoRaw !== 'null') {
-            isTendero = true;
-          } 
-          // 2. Verificar por id_rol en el usuario
-          else if (usuarioRaw) {
+          if (usuarioRaw) {
             try {
               const user = JSON.parse(usuarioRaw);
-              if (user.id_rol == 1) isTendero = true;
+              if (user.id_rol == 2) {
+                isTendero = false;
+              } else if (user.id_rol == 1) {
+                isTendero = true;
+              } else if (tenderoRaw && tenderoRaw !== 'null') {
+                isTendero = true;
+              }
             } catch {}
+          } else if (tenderoRaw && tenderoRaw !== 'null') {
+            isTendero = true;
           }
 
           const target = isTendero ? '/(tabs)/dashboard' : '/(tabs)/vistaUsuario';

@@ -145,6 +145,16 @@ export const addCreditStyles = StyleSheet.create({
     gap: 16,
     marginBottom: 16,
   },
+  scoreCircleWrap: {
+    alignItems: 'center',
+  },
+  scoreCircleHint: {
+    marginTop: 6,
+    fontSize: 11,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    maxWidth: 90,
+  },
   scoreCircle: {
     width: 72,
     height: 72,

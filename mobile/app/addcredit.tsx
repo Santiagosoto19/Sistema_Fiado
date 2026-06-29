@@ -10,16 +10,18 @@ import {
   StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { addCreditStyles as styles } from '@/constants/Addcredit.styles';
 import { COLORS } from '@/constants/colors';
 import { useAddCredit } from '@/hooks/Useaddcredit';
+import { formatNivelRiesgo } from '@/utils/scoring';
 import { Bell, CalendarDays, ChevronLeft, Sparkles, AlertCircle, Wallet, Receipt } from 'lucide-react-native';
 
 export default function AddCreditScreen() {
+  const { clienteId } = useLocalSearchParams<{ clienteId?: string }>();
   const [token, setToken]     = useState<string | null>(null);
   const [tendero, setTendero] = useState<any>(null);
 
@@ -45,7 +47,7 @@ export default function AddCreditScreen() {
     handleCancelar,
     getRiesgoColor,
     showDatePicker, setShowDatePicker,
-  } = useAddCredit(token ?? '', tendero?.id_tendero);
+  } = useAddCredit(token ?? '', tendero?.id_tendero, clienteId);
 
   const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
 
@@ -230,28 +232,25 @@ export default function AddCreditScreen() {
                   ) : (
                     <>
                       <View style={styles.scoreVisualRow}>
-                        <View style={[styles.scoreCircle, { borderColor: getRiesgoColor(scoring.nivel_riesgo) }]}>
-                          <Text style={[styles.scoreCircleText, { color: getRiesgoColor(scoring.nivel_riesgo) }]}>
-                            {scoring.puntaje ?? 0}
-                          </Text>
-                          <Text style={styles.scoreCircleLabel}>/100</Text>
+                        <View style={styles.scoreCircleWrap}>
+                          <View style={[styles.scoreCircle, { borderColor: getRiesgoColor(scoring.nivel_riesgo) }]}>
+                            <Text style={[styles.scoreCircleText, { color: getRiesgoColor(scoring.nivel_riesgo) }]}>
+                              {scoring.confianza ?? 0}
+                            </Text>
+                            <Text style={styles.scoreCircleLabel}>%</Text>
+                          </View>
+                          <Text style={styles.scoreCircleHint}>Confianza del modelo</Text>
                         </View>
                         <View style={styles.scoreInfoColumn}>
                           <View style={[styles.badgeRiesgo, { backgroundColor: getRiesgoColor(scoring.nivel_riesgo) + '20' }]}>
                             <Text style={[styles.badgeRiesgoText, { color: getRiesgoColor(scoring.nivel_riesgo) }]}>
-                              {(scoring.nivel_riesgo ?? 'medio').charAt(0).toUpperCase() + (scoring.nivel_riesgo ?? 'medio').slice(1)}
+                              Riesgo {formatNivelRiesgo(scoring.nivel_riesgo)}
                             </Text>
                           </View>
                           <View style={styles.limiteRow}>
                             <Text style={styles.limiteLabel}>Límite sugerido:</Text>
                             <Text style={styles.limiteValue}>
                               ${(scoring.limite_sugerido ?? 0).toLocaleString('es-CO')}
-                            </Text>
-                          </View>
-                          <View style={styles.limiteRow}>
-                            <Text style={styles.limiteLabel}>Confianza:</Text>
-                            <Text style={styles.limiteValue}>
-                              {scoring.confianza ?? 0}%
                             </Text>
                           </View>
                         </View>

@@ -1,17 +1,22 @@
-function calcularPuntaje(row) {
+function calcularPuntaje(row, options = {}) {
   const sum =
     (row.pts_puntualidad || 0) +
     (row.pts_cumplimiento || 0) +
     (row.pts_historial || 0) +
     (row.pts_antiguedad || 0);
-  // Cliente nuevo: fila en scoring con pts en 0 y nivel medio (regla persistida en BD)
+
+  // Cliente sin créditos con este tendero: puntaje neutral por reglas de negocio
+  if (options.sinHistorialCrediticio) return 50;
+
+  // Fallback legacy: pts en 0 y nivel medio antes de sobrescritura ML
   if (sum === 0 && row.nivel_riesgo === 'medio') return 50;
+
   return sum;
 }
 
-function mapScoringRow(row) {
+function mapScoringRow(row, options = {}) {
   return {
-    puntaje: calcularPuntaje(row),
+    puntaje: calcularPuntaje(row, options),
     nivel_riesgo: row.nivel_riesgo,
     limite_sugerido: parseFloat(row.limite_sugerido),
     confianza: row.confianza != null ? parseFloat(row.confianza) : null,

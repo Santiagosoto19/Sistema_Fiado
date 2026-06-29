@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CONFIG } from '@/config/config';
 
 const API_URL = CONFIG.API_URL;
+const FETCH_TIMEOUT_MS = 15000;
 
 type Usuario = {
   id_usuario: number;
@@ -22,6 +23,17 @@ type LoginResponse = {
   token: string;
   usuario: Usuario;
   tendero: Tendero;
+};
+
+const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs = FETCH_TIMEOUT_MS) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 };
 
 export const useLogin = () => {
@@ -44,58 +56,65 @@ export const useLogin = () => {
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/login`, {
+      const res = await fetchWithTimeout(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: email.trim(), password }),
       });
 
-      const json: LoginResponse = await res.json();
-
-      // Error del servidor
-      if (!res.ok) {
-        const err = json as any;
-        throw new Error(err.error || 'No se pudo iniciar sesión');
+      let json: LoginResponse & { error?: string };
+      try {
+        json = await res.json();
+      } catch {
+        throw new Error('Respuesta inválida del servidor');
       }
 
-      // 1) Guardar sesión
+      if (!res.ok) {
+        throw new Error(json.error || 'No se pudo iniciar sesión');
+      }
+
       await AsyncStorage.setItem('token', json.token);
       await AsyncStorage.setItem('usuario', JSON.stringify(json.usuario));
+      await AsyncStorage.removeItem('lastActive');
 
-      // 2) Guardar tendero (si aplica) + lógica de redirección
-      if (json.tendero) {
+      const isCliente = json.usuario.id_rol == 2;
+      const target = isCliente
+        ? '/(tabs)/vistaUsuario'
+        : json.tendero
+          ? '/(tabs)/dashboard'
+          : '/(tabs)/vistaUsuario';
+
+      if (isCliente) {
+        await AsyncStorage.removeItem('tendero');
+      } else if (json.tendero) {
         await AsyncStorage.setItem('tendero', JSON.stringify(json.tendero));
-        router.replace('/(tabs)/dashboard' as any);
       } else {
         await AsyncStorage.removeItem('tendero');
-        router.replace('/(tabs)/vistaUsuario' as any);
       }
 
+      setLoading(false);
+      router.replace(target as any);
 
-      let nombre = json.tendero?.nombre;
-      if (!nombre) {
-        try {
-          const meRes = await fetch(`${API_URL}/clientes/me`, {
-            headers: { Authorization: `Bearer ${json.token}` },
-          });
-          if (meRes.ok) {
-            const meData = await meRes.json();
-            nombre = meData.nombre_completo;
-          }
-        } catch {}
-      }
-      if (!nombre) nombre = json.usuario.email;
+      const nombre =
+        json.tendero?.nombre ??
+        json.usuario.email;
+
       Alert.alert('¡Bienvenido!', `Hola ${nombre} 👋`);
-
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'No se pudo iniciar sesión');
+      if (err.name === 'AbortError') {
+        Alert.alert(
+          'Sin conexión',
+          'No se pudo contactar el servidor. Verifica que el backend esté activo y que la IP en config.ts sea correcta.'
+        );
+      } else {
+        Alert.alert('Error', err.message || 'No se pudo iniciar sesión');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleForgotPassword = () => {
-    // TODO: router.push('/auth/forgot-password');
     Alert.alert('Próximamente', 'Recuperación de contraseña en desarrollo');
   };
 
@@ -114,7 +133,7 @@ export const useLogin = () => {
     handleLogin,
     handleForgotPassword,
     handleRegister,
-    handleRegisterTendero : () => router.push('/(auth)/registerTendero'),
+    handleRegisterTendero: () => router.push('/(auth)/registerTendero'),
     handleGoogleLogin,
   };
 };

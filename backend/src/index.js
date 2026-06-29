@@ -13,6 +13,7 @@ const alertasRoutes = require('./routes/alertas');
 const analiticaRoutes = require('./routes/analitica');
 const reportesRoutes = require('./routes/reportes');
 const scoringRoutes = require('./routes/scoring');
+const pagosRoutes = require('./routes/pagos');
 
 const app = express();
 
@@ -36,6 +37,7 @@ app.use('/api/alertas', alertasRoutes);
 app.use('/api/analitica', analiticaRoutes);
 app.use('/api/reportes', reportesRoutes);
 app.use('/api/scoring', scoringRoutes);
+app.use('/api/pagos', pagosRoutes);
 
 // Webhook ejemplo (n8n)
 app.post('/webhooks/test', (req, res) => {
@@ -70,6 +72,7 @@ app.listen(PORT, () => {
   console.log(`  Alertas: /api/alertas, /api/alertas/:id/leer`);
   console.log(`  Analítica: /api/analitica/indicadores, /api/analitica/pagos-diarios, /api/analitica/prediccion-flujo`);
   console.log(`  Reportes: /api/reportes, /api/reportes/export/pdf`);
+  console.log(`  Pagos: /api/pagos`);
   console.log(`=================================`);
 });
 

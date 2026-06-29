@@ -16,6 +16,7 @@ import { ArrowLeft, Bell } from 'lucide-react-native';
 import { perfilClienteStyles as styles } from '@/constants/perfilCliente.styles';
 import { COLORS } from '@/constants/colors';
 import { useClientePerfil, EstadoBadge } from '@/hooks/useClientePerfil';
+import { formatNivelRiesgo, getRiesgoColor } from '@/utils/scoring';
 
 const getBadgeStyles = (tipo: EstadoBadge) => {
   switch (tipo) {
@@ -106,9 +107,14 @@ export default function PerfilClienteScreen() {
                 <Text style={styles.statValue}>{perfil.deudaActual}</Text>
               </View>
               <View style={styles.statCard}>
-                <Text style={styles.statLabel}>Nivel de Confianza</Text>
-                <Text style={[styles.statValue, styles.statValueSmall]}>
-                  {perfil.nivelConfianza} / 100
+                <Text style={styles.statLabel}>Perfil IA</Text>
+                <View style={[styles.riesgoBadge, { backgroundColor: getRiesgoColor(perfil.nivelRiesgo) + '20' }]}>
+                  <Text style={[styles.riesgoBadgeText, { color: getRiesgoColor(perfil.nivelRiesgo) }]}>
+                    Riesgo {formatNivelRiesgo(perfil.nivelRiesgo)}
+                  </Text>
+                </View>
+                <Text style={[styles.statValueSmall, styles.confianzaValue]}>
+                  Confianza {perfil.nivelConfianza}%
                 </Text>
               </View>
             </View>
@@ -152,6 +158,36 @@ export default function PerfilClienteScreen() {
                       >
                         {item.monto}
                       </Text>
+                    </View>
+                  </View>
+                ))
+              )}
+            </View>
+
+            <Text style={styles.sectionTitle}>Historial de Pagos</Text>
+            <View style={styles.pagosCard}>
+              {perfil.historialPagos.length === 0 ? (
+                <Text style={styles.pagosEmpty}>Sin pagos registrados</Text>
+              ) : (
+                perfil.historialPagos.map((pago, idx) => (
+                  <View
+                    key={pago.id_abono}
+                    style={[
+                      styles.pagoRow,
+                      idx < perfil.historialPagos.length - 1 && styles.pagoDivider,
+                    ]}
+                  >
+                    <View style={styles.pagoIconWrap}>
+                      <Text style={styles.pagoIconText}>+</Text>
+                    </View>
+                    <View style={styles.pagoInfo}>
+                      <Text style={styles.pagoTitulo}>{pago.titulo}</Text>
+                      <Text style={styles.pagoSub}>
+                        {pago.fecha} · {pago.subtitulo}
+                      </Text>
+                    </View>
+                    <View style={styles.pagoMontoBadge}>
+                      <Text style={styles.pagoMontoText}>{pago.monto}</Text>
                     </View>
                   </View>
                 ))

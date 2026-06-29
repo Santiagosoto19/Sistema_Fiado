@@ -1,8 +1,25 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Alert, Linking } from 'react-native';
 import { CONFIG } from '@/config/config';
+import {
+  formatNivelRiesgo,
+  getRiesgoColor,
+  getRiesgoLabelCliente,
+  mapScoringML,
+} from '@/utils/scoring';
 
 const API_URL = CONFIG.API_URL;
+const FETCH_TIMEOUT_MS = 15000;
+
+const fetchWithTimeout = async (url: string, options: RequestInit) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
 
 export type Movimiento = {
   id: string;
@@ -20,6 +37,7 @@ export type UserData = {
   nombreTienda: string;
   totalDeuda: number;
   fechaLimite: string;
+  nivelRiesgo: string | null;
   nivelConfianza: number;
   nivelConfianzaLabel: string;
   nivelConfianzaColor: string;
@@ -40,7 +58,7 @@ export const useVistaUsuario = (token: string | null) => {
     try {
       setLoading(true);
 
-      const meRes = await fetch(`${API_URL}/clientes/me`, {
+      const meRes = await fetchWithTimeout(`${API_URL}/clientes/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!meRes.ok) {
@@ -48,19 +66,12 @@ export const useVistaUsuario = (token: string | null) => {
         throw new Error(err.error || `Error ${meRes.status}`);
       }
       const user = await meRes.json();
+      const scoringML = mapScoringML(user.scoring ?? {});
 
-      const puntaje = user.scoring?.puntaje ?? 0;
-      const nivelConfianza = Math.min(Math.round(puntaje), 100);
-
-      let nivelConfianzaLabel = 'Mejora Tus Pagos';
-      let nivelConfianzaColor = '#EF5350';
-      if (nivelConfianza >= 80) {
-        nivelConfianzaLabel = '¡Excelente Cliente!';
-        nivelConfianzaColor = '#00C48C';
-      } else if (nivelConfianza >= 50) {
-        nivelConfianzaLabel = 'Buen Cliente';
-        nivelConfianzaColor = '#FFA726';
-      }
+      const nivelConfianza = scoringML.confianza;
+      const nivelRiesgo = scoringML.nivel_riesgo;
+      const nivelConfianzaLabel = getRiesgoLabelCliente(nivelRiesgo);
+      const nivelConfianzaColor = getRiesgoColor(nivelRiesgo);
 
       let telefonoTienda = user.tienda?.telefono || '';
       telefonoTienda = telefonoTienda.replace(/\s/g, '');
@@ -74,6 +85,7 @@ export const useVistaUsuario = (token: string | null) => {
         nombreTienda: user.tienda?.nombre_tienda || 'Sin tienda asociada',
         totalDeuda: 0,
         fechaLimite: 'Sujeto a crédito',
+        nivelRiesgo,
         nivelConfianza,
         nivelConfianzaLabel,
         nivelConfianzaColor,
@@ -83,7 +95,7 @@ export const useVistaUsuario = (token: string | null) => {
       const idCliente = user.id_cliente;
 
       try {
-        const historyRes = await fetch(`${API_URL}/clientes/${idCliente}/historial`, {
+        const historyRes = await fetchWithTimeout(`${API_URL}/clientes/${idCliente}/historial`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!historyRes.ok) {
@@ -145,7 +157,10 @@ export const useVistaUsuario = (token: string | null) => {
         setMovements([]);
       }
     } catch (error: any) {
-      Alert.alert('Error cargando datos', error.message || 'No se pudieron cargar los datos de la cuenta.');
+      const message = error.name === 'AbortError'
+        ? 'No se pudo contactar el servidor. Verifica la conexión y la IP en config.ts.'
+        : (error.message || 'No se pudieron cargar los datos de la cuenta.');
+      Alert.alert('Error cargando datos', message);
     } finally {
       setLoading(false);
     }

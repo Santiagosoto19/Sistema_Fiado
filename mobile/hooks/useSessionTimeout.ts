@@ -1,28 +1,32 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 
-const TIMEOUT_DURATION = 1 * 60 * 1000; 
+const TIMEOUT_DURATION = 1 * 60 * 1000;
 const SESSION_KEYS = ['token', 'usuario', 'tendero', 'lastActive'] as const;
+const LOGIN_ROUTE = '/(auth)/login';
 
 export const useSessionTimeout = () => {
   const router = useRouter();
   const appState = useRef(AppState.currentState);
 
+  const clearSession = useCallback(async () => {
+    await AsyncStorage.multiRemove([...SESSION_KEYS]);
+    router.replace(LOGIN_ROUTE as any);
+  }, [router]);
+
   useEffect(() => {
     let cancelled = false;
 
-    // Cold start: si la app fue cerrada con sesión abierta, forzamos cierre de sesión
-    // (cumple el requisito de que al reabrir la app no quede la sesión activa).
     const coldStartCheck = async () => {
       try {
         const token = await AsyncStorage.getItem('token');
         const lastActive = await AsyncStorage.getItem('lastActive');
 
-        if (token && lastActive) {
+        if (token && lastActive && !cancelled) {
           await AsyncStorage.multiRemove([...SESSION_KEYS]);
-          if (!cancelled) router.replace('/login');
+          router.replace(LOGIN_ROUTE as any);
         }
       } catch {
         // No-op
@@ -35,20 +39,21 @@ export const useSessionTimeout = () => {
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
         const lastActive = await AsyncStorage.getItem('lastActive');
         if (lastActive) {
-          const elapsed = Date.now() - parseInt(lastActive);
+          const elapsed = Date.now() - parseInt(lastActive, 10);
           if (elapsed > TIMEOUT_DURATION) {
-            await AsyncStorage.multiRemove([...SESSION_KEYS]);
-            router.replace('/login');
+            await clearSession();
             return;
           }
         }
       }
 
       if (nextAppState.match(/inactive|background/)) {
-        // La app entra en segundo plano, guardamos el tiempo actual
-        await AsyncStorage.setItem('lastActive', Date.now().toString());
+        const token = await AsyncStorage.getItem('token');
+        if (token) {
+          await AsyncStorage.setItem('lastActive', Date.now().toString());
+        }
       }
-      
+
       appState.current = nextAppState;
     };
 
@@ -58,5 +63,5 @@ export const useSessionTimeout = () => {
       cancelled = true;
       subscription.remove();
     };
-  }, [router]);
+  }, [router, clearSession]);
 };
