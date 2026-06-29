@@ -119,6 +119,7 @@ return (
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
             <Stack.Screen name="addcredit" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="registerpayment" options={{ presentation: 'modal' }} />
           </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>
