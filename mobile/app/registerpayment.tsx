@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useFocusEffect } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ChevronLeft, Bell } from 'lucide-react-native';
@@ -17,6 +17,7 @@ import { COLORS } from '@/constants/colors';
 import { useRegisterPayment } from '@/hooks/Useregisterpayment';
 
 export default function RegisterPaymentScreen() {
+  const { clienteId } = useLocalSearchParams<{ clienteId?: string }>();
   const [token, setToken] = useState<string | null>(null);
 
   useFocusEffect(
@@ -37,7 +38,7 @@ export default function RegisterPaymentScreen() {
     handleConfirmarPago,
     handleCancelar,
     getEstadoColor, getEstadoLabel,
-  } = useRegisterPayment(token ?? '');
+  } = useRegisterPayment(token ?? '', clienteId);
 
   const quickAmounts = getQuickAmounts();
   const multiplesCreditos = creditosDisponibles.length > 1;

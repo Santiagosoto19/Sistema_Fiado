@@ -4,6 +4,7 @@
 
 const AppError = require('../../utils/AppError');
 const { triggerMLRetrain } = require('../../utils/mlTrigger');
+const { toDateKey, todayLocalKey } = require('../../utils/dateUtils');
 const creditsRepository = require('./credits.repository');
 
 const round2 = (valor) => Math.round((valor + Number.EPSILON) * 100) / 100;
@@ -36,24 +37,27 @@ const validarConsistenciaPago = (credito, monto, fechaAbono) => {
     );
   }
 
-  if (!fechaAbono || Number.isNaN(new Date(fechaAbono).getTime())) {
+  let abonoKey = toDateKey(fechaAbono);
+  if (!abonoKey) {
     throw new AppError('La fecha del abono es inválida', 400);
   }
 
-  const fAbono = new Date(fechaAbono);
-  const hoy = new Date();
-  hoy.setHours(23, 59, 59, 999);
-
-  if (fAbono.getTime() > hoy.getTime()) {
+  const hoyKey = todayLocalKey();
+  if (abonoKey > hoyKey) {
     throw new AppError('La fecha del abono no puede ser futura', 400);
   }
 
-  const fCredito = new Date(credito.fecha_credito);
-  if (fAbono.getTime() < fCredito.getTime()) {
-    throw new AppError('La fecha del abono no puede ser anterior a la fecha del crédito', 400);
+  const creditoKey = toDateKey(credito.fecha_credito);
+  if (creditoKey && abonoKey < creditoKey) {
+    // Pago con fecha de hoy: tolerar créditos con fecha_credito adelantada (UTC al crear)
+    if (abonoKey === hoyKey) {
+      abonoKey = creditoKey;
+    } else {
+      throw new AppError('La fecha del abono no puede ser anterior a la fecha del crédito', 400);
+    }
   }
 
-  return montoNum;
+  return { monto: montoNum, fechaAbono: abonoKey };
 };
 
 const registrarPago = async ({ creditoId, idTendero, monto, fechaAbono }) => {
@@ -68,7 +72,11 @@ const registrarPago = async ({ creditoId, idTendero, monto, fechaAbono }) => {
       throw new AppError('Crédito no encontrado', 404);
     }
 
-    const montoValidado = validarConsistenciaPago(credito, monto, fechaAbono);
+    const { monto: montoValidado, fechaAbono: fechaAbonoValidada } = validarConsistenciaPago(
+      credito,
+      monto,
+      fechaAbono
+    );
 
     const saldoAnterior = round2(parseFloat(credito.saldo_pendiente));
     const saldoNuevo = Math.max(0, round2(saldoAnterior - montoValidado));
@@ -78,7 +86,7 @@ const registrarPago = async ({ creditoId, idTendero, monto, fechaAbono }) => {
       idCredito: credito.id_credito,
       idCliente: credito.id_cliente,
       monto: montoValidado,
-      fechaAbono,
+      fechaAbono: fechaAbonoValidada,
     });
 
     const updateResult = await creditsRepository.actualizarSaldoCredito(client, {

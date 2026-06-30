@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../config/database');
 const authMiddleware = require('../middleware/auth');
 const { triggerMLRetrain } = require('../utils/mlTrigger');
+const { todayLocalKey } = require('../utils/dateUtils');
 const creditsController = require('../modules/creditos/credits.controller');
 
 const router = express.Router();
@@ -140,7 +141,7 @@ router.post('/', async (req, res) => {
       ON CONFLICT (id_tendero, id_cliente) DO NOTHING
     `, [idTendero, clienteId]);
 
-    const fechaCredito = new Date().toISOString().split('T')[0];
+    const fechaCredito = todayLocalKey();
 
     const result = await pool.query(`
       INSERT INTO creditos (id_cliente, id_tendero, monto_total, saldo_pendiente, descripcion, fecha_credito, fecha_limite_pago, estado)

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Alert } from 'react-native';
 import { router } from 'expo-router';
 import { CONFIG } from '@/config/config';
@@ -127,10 +127,22 @@ const resolverCliente = async (
   );
 };
 
+const normalizeClienteId = (value: unknown, fallback = ''): string => {
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' && !Number.isNaN(value)) return String(value).trim();
+  return fallback.trim();
+};
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-export const useRegisterPayment = (token: string) => {
-  const [busqueda, setBusqueda]           = useState('');
+export const useRegisterPayment = (
+  token: string,
+  initialClienteId?: string | string[],
+) => {
+  const initialId = normalizeClienteId(
+    Array.isArray(initialClienteId) ? initialClienteId[0] : initialClienteId,
+  );
+  const [busqueda, setBusqueda]           = useState(initialId);
   const [nombreCliente, setNombreCliente]   = useState<string | null>(null);
   const [clienteId, setClienteId]           = useState<string | null>(null);
   const [creditosDisponibles, setCreditosDisponibles] = useState<CreditoOpcion[]>([]);
@@ -154,8 +166,9 @@ export const useRegisterPayment = (token: string) => {
     setMonto(mapped.saldoPendiente.toString());
   };
 
-  const buscarCliente = async () => {
-    if (!busqueda.trim()) return;
+  const buscarClientePorTerm = useCallback(async (term: string) => {
+    const trimmed = term.trim();
+    if (!trimmed) return;
     if (!token) {
       Alert.alert('Sesión', 'No hay sesión activa. Inicia sesión nuevamente.');
       return;
@@ -168,8 +181,7 @@ export const useRegisterPayment = (token: string) => {
     setCreditosDisponibles([]);
 
     try {
-      const term = busqueda.trim();
-      const { id: resolvedClienteId, nombre } = await resolverCliente(term, token);
+      const { id: resolvedClienteId, nombre } = await resolverCliente(trimmed, token);
 
       const resCreditos = await fetch(`${API_URL}/creditos/cliente/${resolvedClienteId}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -213,7 +225,17 @@ export const useRegisterPayment = (token: string) => {
     } finally {
       setLoadingBusqueda(false);
     }
-  };
+  }, [token]);
+
+  const buscarCliente = useCallback(async () => {
+    await buscarClientePorTerm(busqueda);
+  }, [busqueda, buscarClientePorTerm]);
+
+  useEffect(() => {
+    if (!initialId || !token) return;
+    setBusqueda(initialId);
+    buscarClientePorTerm(initialId);
+  }, [initialId, token, buscarClientePorTerm]);
 
   const getQuickAmounts = (): { label: string; value: number }[] => {
     if (!credito) return [];

@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Modal,
   StyleSheet,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams } from 'expo-router';
@@ -51,9 +52,30 @@ export default function AddCreditScreen() {
 
   const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
 
+  const inicioHoy = () => {
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    return hoy;
+  };
+
+  const esFechaPasada = (dia: number, month = currentCalendarDate.getMonth(), year = currentCalendarDate.getFullYear()) => {
+    const candidata = new Date(year, month, dia);
+    candidata.setHours(0, 0, 0, 0);
+    return candidata.getTime() < inicioHoy().getTime();
+  };
+
+  const esMesAnteriorAlActual = (fecha: Date) => {
+    const inicioMesVista = new Date(fecha.getFullYear(), fecha.getMonth(), 1);
+    const inicioMesActual = new Date(inicioHoy().getFullYear(), inicioHoy().getMonth(), 1);
+    return inicioMesVista < inicioMesActual;
+  };
+
   const changeMonth = (direction: number) => {
     setCurrentCalendarDate(prev => {
       const nextDate = new Date(prev.getFullYear(), prev.getMonth() + direction, 1);
+      if (direction < 0 && esMesAnteriorAlActual(nextDate)) {
+        return prev;
+      }
       return nextDate;
     });
   };
@@ -85,6 +107,10 @@ export default function AddCreditScreen() {
   };
 
   const seleccionarDia = (dia: number) => {
+    if (esFechaPasada(dia)) {
+      Alert.alert('Fecha inválida', 'La fecha límite no puede ser anterior a hoy.');
+      return;
+    }
     const d = String(dia).padStart(2, '0');
     const m = String(currentCalendarDate.getMonth() + 1).padStart(2, '0');
     const y = currentCalendarDate.getFullYear();
@@ -140,9 +166,9 @@ export default function AddCreditScreen() {
                 value={usuario}
                 onChangeText={setUsuario}
                 keyboardType="numeric"
-                onEndEditing={buscarScoring}
+                onEndEditing={() => buscarScoring()}
                 returnKeyType="search"
-                onSubmitEditing={buscarScoring}
+                onSubmitEditing={() => buscarScoring()}
               />
             </View>
 
@@ -174,7 +200,10 @@ export default function AddCreditScreen() {
                 />
                 <TouchableOpacity 
                   style={styles.calendarBtn}
-                  onPress={() => setShowDatePicker(true)}
+                  onPress={() => {
+                    setCurrentCalendarDate(new Date());
+                    setShowDatePicker(true);
+                  }}
                   activeOpacity={0.7}
                 >
                   <CalendarDays size={22} color={COLORS.white}
@@ -351,8 +380,16 @@ export default function AddCreditScreen() {
             {/* Header del Calendario */}
             <View style={calendarStyles.header}>
               <TouchableOpacity 
-                style={calendarStyles.navBtn}
+                style={[
+                  calendarStyles.navBtn,
+                  esMesAnteriorAlActual(
+                    new Date(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth() - 1, 1)
+                  ) && calendarStyles.navBtnDisabled,
+                ]}
                 onPress={() => changeMonth(-1)}
+                disabled={esMesAnteriorAlActual(
+                  new Date(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth() - 1, 1)
+                )}
               >
                 <ChevronLeft size={20} color={COLORS.text} />
               </TouchableOpacity>
@@ -385,6 +422,7 @@ export default function AddCreditScreen() {
 
                 const esSeleccionado = verificarDiaSeleccionado(dia);
                 const esHoy = verificarEsHoy(dia);
+                const esPasado = esFechaPasada(dia);
 
                 return (
                   <TouchableOpacity
@@ -393,13 +431,17 @@ export default function AddCreditScreen() {
                       calendarStyles.dayCell,
                       esSeleccionado && calendarStyles.selectedDayCell,
                       esHoy && !esSeleccionado && calendarStyles.todayCell,
+                      esPasado && calendarStyles.disabledDayCell,
                     ]}
                     onPress={() => seleccionarDia(dia)}
+                    disabled={esPasado}
+                    activeOpacity={esPasado ? 1 : 0.7}
                   >
                     <Text
                       style={[
                         calendarStyles.dayText,
                         esSeleccionado && calendarStyles.selectedDayText,
+                        esPasado && calendarStyles.disabledDayText,
                       ]}
                     >
                       {dia}
@@ -460,6 +502,9 @@ const calendarStyles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: COLORS.inputBg,
   },
+  navBtnDisabled: {
+    opacity: 0.35,
+  },
   weekDaysRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -508,6 +553,12 @@ const calendarStyles = StyleSheet.create({
   todayCell: {
     borderWidth: 1.5,
     borderColor: COLORS.primary,
+  },
+  disabledDayCell: {
+    opacity: 0.35,
+  },
+  disabledDayText: {
+    color: COLORS.textMuted,
   },
   closeBtn: {
     marginTop: 20,

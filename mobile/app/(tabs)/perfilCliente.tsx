@@ -44,8 +44,15 @@ export default function PerfilClienteScreen() {
     loading,
     error,
     handleNuevoCredito,
-    handleRegistrarPago,
   } = useClientePerfil(token, id);
+
+  const handleRegistrarPago = () => {
+    if (!id) return;
+    router.push({
+      pathname: '/registerpayment',
+      params: { clienteId: String(id) },
+    });
+  };
 
   if (token === null || loading) {
     return (

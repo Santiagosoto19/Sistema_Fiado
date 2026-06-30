@@ -39,13 +39,16 @@ router.post('/login', async (req, res) => {
     );
 
     const tendero = tenderoResult.rows[0] || null;
+    const esTendero = Number(user.id_rol) === 1;
 
     const token = jwt.sign(
       {
         id_usuario: user.id_usuario,
         email: user.email,
         id_rol: user.id_rol,
-        id_tendero: tendero ? tendero.id_tendero : null
+        // Solo incluir id_tendero cuando el rol activo es tendero (id_rol=1).
+        // Number() porque pg puede devolver id_rol como string.
+        id_tendero: esTendero && tendero ? tendero.id_tendero : null
       },
       process.env.JWT_SECRET || 'fiadocheck_jwt_secret_2024_secure',
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
