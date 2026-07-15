@@ -40,6 +40,15 @@ router.post('/login', async (req, res) => {
 
     const tendero = tenderoResult.rows[0] || null;
 
+    let cliente = null;
+    if (!tendero) {
+      const clienteResult = await pool.query(
+        'SELECT id_cliente, nombre_completo FROM clientes WHERE id_usuario = $1',
+        [user.id_usuario]
+      );
+      cliente = clienteResult.rows[0] || null;
+    }
+
     const token = jwt.sign(
       {
         id_usuario: user.id_usuario,
@@ -70,6 +79,10 @@ router.post('/login', async (req, res) => {
         id_tendero: tendero.id_tendero,
         nombre: tendero.nombre,
         nombre_tienda: tendero.nombre_tienda
+      } : null,
+      cliente: cliente ? {
+        id_cliente: cliente.id_cliente,
+        nombre_completo: cliente.nombre_completo
       } : null
     });
   } catch (err) {
@@ -84,7 +97,7 @@ router.post('/logout', require('../middleware/auth'), async (req, res) => {
     const pool = require('../config/database');
 
     await pool.query(
-      'UPDATE sesiones SET revoke = true WHERE token_hash = $1',
+      'UPDATE sesiones SET revocado = true WHERE token_hash = $1',
       [req.tokenHash]
     );
 
@@ -95,7 +108,121 @@ router.post('/logout', require('../middleware/auth'), async (req, res) => {
   }
 });
 
+// GET /api/auth/profile
+router.get('/profile', require('../middleware/auth'), async (req, res) => {
+  try {
+    const idUsuario = req.user.id_usuario;
+    const idRol = Number(req.user.id_rol);
+
+    const userResult = await pool.query(
+      'SELECT id_usuario, email, id_rol, foto_perfil FROM usuario WHERE id_usuario = $1',
+      [idUsuario]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    const user = userResult.rows[0];
+    let profile = {};
+
+    if (idRol === 1) {
+      const tenderoResult = await pool.query(
+        'SELECT id_tendero, nombre, nombre_tienda, telefono, direccion, num_camara_comercio FROM tenderos WHERE id_usuario = $1',
+        [idUsuario]
+      );
+      profile = tenderoResult.rows[0] || {};
+    } else if (idRol === 2) {
+      const clienteResult = await pool.query(
+        'SELECT id_cliente, nombre_completo, telefono, direccion FROM clientes WHERE id_usuario = $1',
+        [idUsuario]
+      );
+      profile = clienteResult.rows[0] || {};
+    }
+
+    res.json({
+      ...user,
+      ...profile,
+    });
+  } catch (err) {
+    console.error('Error obteniendo perfil:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// PUT /api/auth/profile
+router.put('/profile', require('../middleware/auth'), async (req, res) => {
+  try {
+    const { email, foto_perfil, ...otherData } = req.body;
+    const idUsuario = req.user.id_usuario;
+    const idRol = Number(req.user.id_rol);
+
+    await pool.query('BEGIN');
+
+    // 1. Actualizar datos básicos del usuario
+    if (email) {
+      await pool.query('UPDATE usuario SET email = $1 WHERE id_usuario = $2', [email, idUsuario]);
+    }
+    if (foto_perfil) {
+      await pool.query('UPDATE usuario SET foto_perfil = $1 WHERE id_usuario = $2', [foto_perfil, idUsuario]);
+    }
+
+    // 2. Actualizar datos específicos según rol
+    if (idRol === 1) { // Tendero
+      const { nombre, nombre_tienda, telefono, direccion } = otherData;
+      await pool.query(
+        'UPDATE tenderos SET nombre = COALESCE($1, nombre), nombre_tienda = COALESCE($2, nombre_tienda), telefono = COALESCE($3, telefono), direccion = COALESCE($4, direccion) WHERE id_usuario = $5',
+        [nombre, nombre_tienda, telefono, direccion, idUsuario]
+      );
+    } else if (idRol === 2) { // Cliente
+      const { nombre_completo, telefono, direccion } = otherData;
+      await pool.query(
+        'UPDATE clientes SET nombre_completo = COALESCE($1, nombre_completo), telefono = COALESCE($2, telefono), direccion = COALESCE($3, direccion) WHERE id_usuario = $4',
+        [nombre_completo, telefono, direccion, idUsuario]
+      );
+    }
+
+    await pool.query('COMMIT');
+    res.json({ message: 'Perfil actualizado correctamente' });
+  } catch (err) {
+    await pool.query('ROLLBACK');
+    console.error('Error actualizando perfil:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// PUT /api/auth/change-password
+router.put('/change-password', require('../middleware/auth'), async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const idUsuario = req.user.id_usuario;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Contraseña actual y nueva son requeridas' });
+    }
+
+    const result = await pool.query('SELECT password FROM usuario WHERE id_usuario = $1', [idUsuario]);
+    const user = result.rows[0];
+
+    const validCurrentPassword = await bcrypt.compare(currentPassword, user.password);
+    if (!validCurrentPassword) {
+      return res.status(401).json({ error: 'La contraseña actual es incorrecta' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedNewPassword = await bcrypt.hash(newPassword, salt);
+
+    await pool.query('UPDATE usuario SET password = $1 WHERE id_usuario = $2', [hashedNewPassword, idUsuario]);
+
+    res.json({ message: 'Contraseña actualizada correctamente' });
+  } catch (err) {
+    console.error('Error cambiando contraseña:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // POST /api/auth/registerClientes
+
 router.post('/registerClientes', async (req, res) => {
   const client = await pool.connect();
   try {

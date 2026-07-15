@@ -19,10 +19,16 @@ type Tendero = {
   nombre_tienda: string;
 } | null;
 
+type Cliente = {
+  id_cliente: string;
+  nombre_completo: string;
+} | null;
+
 type LoginResponse = {
   token: string;
   usuario: Usuario;
   tendero: Tendero;
+  cliente: Cliente;
 };
 
 const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs = FETCH_TIMEOUT_MS) => {
@@ -86,6 +92,9 @@ export const useLogin = () => {
 
       if (isCliente) {
         await AsyncStorage.removeItem('tendero');
+        if (json.cliente) {
+          await AsyncStorage.setItem('usuario', JSON.stringify({ ...json.usuario, ...json.cliente }));
+        }
       } else if (json.tendero) {
         await AsyncStorage.setItem('tendero', JSON.stringify(json.tendero));
       } else {
@@ -97,6 +106,7 @@ export const useLogin = () => {
 
       const nombre =
         json.tendero?.nombre ??
+        json.cliente?.nombre_completo ??
         json.usuario.email;
 
       Alert.alert('¡Bienvenido!', `Hola ${nombre} 👋`);
