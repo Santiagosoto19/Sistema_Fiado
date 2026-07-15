@@ -124,7 +124,7 @@ export const useDashboard = (token: string) => {
   };
  
   const handleNuevoCredito  = () => { router.push('/addcredit'); };
-  const handleRegistrarPago = () => { /* TODO: router.push('/payments/new') */ };
+  const handleRegistrarPago = () => { router.push('/registerpayment' as any); };
   const handleBell          = () => { /* TODO: router.push('/alerts') */ };
  
   return {

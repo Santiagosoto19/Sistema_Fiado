@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Alert } from 'react-native';
 import { router } from 'expo-router';
 import { CONFIG } from '@/config/config';
 import { mapScoringML, ScoringML } from '@/utils/scoring';
@@ -194,15 +193,11 @@ Promise.all([
       params: { clienteId: String(clienteId) },
     });
   };
-  const handleRegistrarPago = () => {
-    Alert.alert('Próximamente', 'La pantalla de registrar pago estará disponible pronto.');
-  };
   return {
     perfil,
     loading,
     error,
     refetch: fetchPerfil,
     handleNuevoCredito,
-    handleRegistrarPago,
   };
 };

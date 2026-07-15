@@ -104,15 +104,6 @@ export default function TabLayout() {
         }}
       />
 
-      <Tabs.Screen
-          name="pagos"
-          options={{
-            title: 'Pagos',
-            href: isTendero ? undefined : null,
-            tabBarIcon: ({ color }) => <MaterialIcons size={26} name="payments"
-          color={color} />,
-          }}
-        />
 
       {/* Solo para Clientes */}
       <Tabs.Screen

@@ -92,10 +92,8 @@ export const useVistaUsuario = (token: string | null) => {
         telefonoTienda,
       });
 
-      const idCliente = user.id_cliente;
-
       try {
-        const historyRes = await fetchWithTimeout(`${API_URL}/clientes/${idCliente}/historial`, {
+        const historyRes = await fetchWithTimeout(`${API_URL}/clientes/me/historial`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!historyRes.ok) {

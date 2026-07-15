@@ -8,7 +8,16 @@ router.use(authMiddleware);
 // GET /api/dashboard
 router.get('/', async (req, res) => {
   try {
-    const idTendero = req.user.id_tendero;
+    let idTendero = req.user.id_tendero;
+
+    // Fallback: tokens emitidos antes del fix de id_rol, o JWT sin id_tendero
+    if (!idTendero && Number(req.user.id_rol) === 1 && req.user.id_usuario) {
+      const tendero = await pool.query(
+        'SELECT id_tendero FROM tenderos WHERE id_usuario = $1',
+        [req.user.id_usuario]
+      );
+      idTendero = tendero.rows[0]?.id_tendero || null;
+    }
 
     if (!idTendero) {
       return res.status(403).json({ error: 'No tienes permisos para acceder al dashboard' });

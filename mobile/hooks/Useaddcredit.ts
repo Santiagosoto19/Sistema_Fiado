@@ -58,8 +58,17 @@ const mapRecomendacion = (json: RecomendacionResponse): RecomendacionIA => {
   };
 };
 
-export const useAddCredit = (token: string, id_tendero: string, initialClienteId?: string) => {
-  const [usuario, setUsuario]         = useState(initialClienteId ?? '');
+const normalizeClienteId = (value: unknown, fallback = ''): string => {
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' && !Number.isNaN(value)) return String(value).trim();
+  return fallback.trim();
+};
+
+export const useAddCredit = (token: string, id_tendero: string, initialClienteId?: string | string[]) => {
+  const initialId = normalizeClienteId(
+    Array.isArray(initialClienteId) ? initialClienteId[0] : initialClienteId,
+  );
+  const [usuario, setUsuario]         = useState(initialId);
   const [monto, setMonto]             = useState('');
   const [fechaLimite, setFechaLimite] = useState('');
   const [observaciones, setObservaciones] = useState('');
@@ -105,8 +114,11 @@ export const useAddCredit = (token: string, id_tendero: string, initialClienteId
     throw new Error(json.error || 'No se pudo cargar la recomendación');
   };
 
-  const buscarScoring = async (clienteId?: string) => {
-    const id = (clienteId ?? usuario).trim();
+  const buscarScoring = async (clienteId?: unknown) => {
+    const id = normalizeClienteId(
+      typeof clienteId === 'string' || typeof clienteId === 'number' ? clienteId : undefined,
+      usuario,
+    );
     if (!id) return;
     setLoadingScoring(true);
     try {
@@ -121,15 +133,15 @@ export const useAddCredit = (token: string, id_tendero: string, initialClienteId
   };
 
   useEffect(() => {
-    if (!initialClienteId?.trim() || !token) return;
+    if (!initialId || !token) return;
 
     let cancelled = false;
 
     const load = async () => {
-      setUsuario(initialClienteId.trim());
+      setUsuario(initialId);
       setLoadingScoring(true);
       try {
-        const data = await fetchRecomendacion(initialClienteId.trim());
+        const data = await fetchRecomendacion(initialId);
         if (!cancelled) setScoring(mapRecomendacion(data));
       } catch (err: any) {
         if (!cancelled) {
@@ -143,7 +155,7 @@ export const useAddCredit = (token: string, id_tendero: string, initialClienteId
 
     load();
     return () => { cancelled = true; };
-  }, [initialClienteId, token]);
+  }, [initialId, token]);
 
   const isValidDate = (str: string) => {
     const parts = str.split('/');
@@ -164,6 +176,13 @@ export const useAddCredit = (token: string, id_tendero: string, initialClienteId
 
     const currentYear = new Date().getFullYear();
     if (year < currentYear || year > currentYear + 10) {
+      return false;
+    }
+
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    dateObj.setHours(0, 0, 0, 0);
+    if (dateObj.getTime() < hoy.getTime()) {
       return false;
     }
 
@@ -195,7 +214,7 @@ export const useAddCredit = (token: string, id_tendero: string, initialClienteId
     if (!isValidDate(fechaLimite)) {
       Alert.alert(
         'Fecha inválida',
-        'Ingresa una fecha límite de pago real y válida con formato DD/MM/AAAA (ej: 28/05/2026).'
+        'Ingresa una fecha límite válida (DD/MM/AAAA) igual o posterior a hoy.'
       );
       return;
     }
@@ -220,7 +239,7 @@ export const useAddCredit = (token: string, id_tendero: string, initialClienteId
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          clienteId: usuario.trim(),
+          clienteId: normalizeClienteId(usuario),
           montoTotal: parseFloat(monto.replace(/[^0-9.]/g, '')),
           fechaLimitePago: fechaFormateada,
           descripcion: observaciones,

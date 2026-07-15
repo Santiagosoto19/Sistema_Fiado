@@ -7,6 +7,79 @@ const { syncMLPrediction } = require('../utils/mlScoring');
 const router = express.Router();
 router.use(authMiddleware);
 
+const verificarAccesoHistorial = async (idCliente, { idTendero, idUsuario }) => {
+  if (idUsuario) {
+    const esPropio = await pool.query(
+      `SELECT 1 FROM clientes WHERE id_usuario = $1 AND id_cliente = $2`,
+      [idUsuario, idCliente]
+    );
+    if (esPropio.rows.length > 0) return { permitido: true, esClientePropio: true };
+  }
+
+  if (idTendero) {
+    const verifica = await pool.query(
+      `SELECT 1 FROM tendero_cliente WHERE id_tendero = $1 AND id_cliente = $2 AND estado = 'activo'`,
+      [idTendero, idCliente]
+    );
+    if (verifica.rows.length > 0) return { permitido: true, esClientePropio: false };
+  }
+
+  return { permitido: false, esClientePropio: false };
+};
+
+const construirHistorial = async (idCliente, { idTendero, esClientePropio }) => {
+  let resolvedTendero = idTendero;
+
+  if (esClientePropio || !resolvedTendero) {
+    const tcResult = await pool.query(
+      `SELECT id_tendero FROM tendero_cliente WHERE id_cliente = $1 AND estado = 'activo' LIMIT 1`,
+      [idCliente]
+    );
+    resolvedTendero = tcResult.rows[0]?.id_tendero || null;
+  }
+
+  if (!resolvedTendero) return [];
+
+  const creditos = await pool.query(`
+    SELECT c.*,
+           (SELECT COALESCE(SUM(monto), 0) FROM abonos WHERE id_credito = c.id_credito) as total_abonado
+    FROM creditos c
+    WHERE c.id_cliente = $1 AND c.id_tendero = $2
+    ORDER BY c.fecha_credito DESC
+  `, [idCliente, resolvedTendero]);
+
+  const historial = [];
+
+  for (const credito of creditos.rows) {
+    const abonos = await pool.query(`
+      SELECT id_abono, monto, fecha_abono, created_at
+      FROM abonos WHERE id_credito = $1 ORDER BY fecha_abono ASC
+    `, [credito.id_credito]);
+
+    historial.push({
+      credito: {
+        id_credito: credito.id_credito,
+        monto_total: parseFloat(credito.monto_total),
+        saldo_pendiente: parseFloat(credito.saldo_pendiente),
+        descripcion: credito.descripcion,
+        fecha_credito: credito.fecha_credito,
+        fecha_limite_pago: credito.fecha_limite_pago,
+        estado: credito.estado,
+        created_at: credito.created_at
+      },
+      total_abonado: parseFloat(credito.total_abonado),
+      abonos: abonos.rows.map(a => ({
+        id_abono: a.id_abono,
+        monto: parseFloat(a.monto),
+        fecha_abono: a.fecha_abono,
+        created_at: a.created_at
+      }))
+    });
+  }
+
+  return historial;
+};
+
 // GET /api/clientes
 router.get('/', async (req, res) => {
   try {
@@ -301,75 +374,58 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// GET /api/clientes/me/historial — historial del cliente logueado
+router.get('/me/historial', async (req, res) => {
+  try {
+    const idUsuario = req.user.id_usuario;
+
+    const cliente = await pool.query(
+      `SELECT id_cliente FROM clientes WHERE id_usuario = $1 LIMIT 1`,
+      [idUsuario]
+    );
+
+    if (cliente.rows.length === 0) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+
+    const idCliente = cliente.rows[0].id_cliente;
+    const acceso = await verificarAccesoHistorial(idCliente, {
+      idTendero: null,
+      idUsuario,
+    });
+
+    if (!acceso.permitido) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+
+    const historial = await construirHistorial(idCliente, {
+      idTendero: null,
+      esClientePropio: true,
+    });
+
+    res.json({ cliente_id: idCliente, historial });
+  } catch (err) {
+    console.error('Error en historial /me:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // GET /api/clientes/:id/historial
 router.get('/:id/historial', async (req, res) => {
   try {
     const { id } = req.params;
-    const idTendero = req.user.id_tendero;
-    const idUsuario = req.user.id_usuario;
+    const { id_tendero: idTendero, id_usuario: idUsuario } = req.user;
 
-    let tieneAcceso = false;
+    const acceso = await verificarAccesoHistorial(id, { idTendero, idUsuario });
 
-    if (idTendero) {
-      const verifica = await pool.query(`
-        SELECT 1 FROM tendero_cliente WHERE id_tendero = $1 AND id_cliente = $2 AND estado = 'activo'
-      `, [idTendero, id]);
-      tieneAcceso = verifica.rows.length > 0;
-    } else if (idUsuario) {
-      const verifica = await pool.query(`
-        SELECT 1 FROM clientes WHERE id_usuario = $1 AND id_cliente = $2
-      `, [idUsuario, id]);
-      tieneAcceso = verifica.rows.length > 0;
-    }
-
-    if (!tieneAcceso) {
+    if (!acceso.permitido) {
       return res.status(404).json({ error: 'Cliente no encontrado' });
     }
 
-    let resolvedTendero = idTendero;
-    if (!resolvedTendero) {
-      const tcResult = await pool.query(`
-        SELECT id_tendero FROM tendero_cliente WHERE id_cliente = $1 AND estado = 'activo' LIMIT 1
-      `, [id]);
-      resolvedTendero = tcResult.rows[0]?.id_tendero || null;
-    }
-
-    const creditos = await pool.query(`
-      SELECT c.*,
-             (SELECT COALESCE(SUM(monto), 0) FROM abonos WHERE id_credito = c.id_credito) as total_abonado
-      FROM creditos c
-      WHERE c.id_cliente = $1 AND c.id_tendero = $2
-      ORDER BY c.fecha_credito DESC
-    `, [id, resolvedTendero]);
-
-    const historial = [];
-
-    for (const credito of creditos.rows) {
-      const abonos = await pool.query(`
-        SELECT id_abono, monto, fecha_abono, created_at
-        FROM abonos WHERE id_credito = $1 ORDER BY fecha_abono ASC
-      `, [credito.id_credito]);
-
-      historial.push({
-        credito: {
-          id_credito: credito.id_credito,
-          monto_total: parseFloat(credito.monto_total),
-          saldo_pendiente: parseFloat(credito.saldo_pendiente),
-          descripcion: credito.descripcion,
-          fecha_credito: credito.fecha_credito,
-          fecha_limite_pago: credito.fecha_limite_pago,
-          estado: credito.estado,
-          created_at: credito.created_at
-        },
-        total_abonado: parseFloat(credito.total_abonado),
-        abonos: abonos.rows.map(a => ({
-          id_abono: a.id_abono,
-          monto: parseFloat(a.monto),
-          fecha_abono: a.fecha_abono,
-          created_at: a.created_at
-        }))
-      });
-    }
+    const historial = await construirHistorial(id, {
+      idTendero,
+      esClientePropio: acceso.esClientePropio,
+    });
 
     res.json({ cliente_id: id, historial });
   } catch (err) {

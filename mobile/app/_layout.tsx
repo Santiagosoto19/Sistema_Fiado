@@ -62,7 +62,8 @@ export default function RootLayout() {
         const inTabsGroup = segment0 === '(tabs)';
         const inVistaUsuario = segment0 === 'vistaUsuario';
         const inAddCredit = segment0 === 'addcredit';
-        const isProtected = inTabsGroup || inVistaUsuario || inAddCredit;
+        const inRegisterPayment = segment0 === 'registerpayment';
+        const isProtected = inTabsGroup || inVistaUsuario || inAddCredit || inRegisterPayment;
 
         if (!token && isProtected) {
           router.replace('/(auth)/home' as any);
@@ -119,6 +120,7 @@ return (
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
             <Stack.Screen name="addcredit" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="registerpayment" options={{ presentation: 'modal' }} />
           </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>

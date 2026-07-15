@@ -80,7 +80,7 @@ const pagosFiltrados = useMemo(() => {
 }, [pagos, busqueda]);
 const handleFiltro = (filtro: FiltroPeriodo) => setFiltroPeriodo(filtro);
 const handleRegistrarPago = () => {
-    router.push('/registrarPago');
+  router.push('/registerpayment' as any);
 };
 return {
     pagos: pagosFiltrados,
