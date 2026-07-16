@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Banknote, Bot } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from 'expo-router';
 
@@ -103,9 +104,22 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <MaterialIcons size={26} name="people" color={color} />,
         }}
       />
-
-
-      {/* Solo para Clientes */}
+      <Tabs.Screen
+        name="pagos"
+        options={{
+          title: 'Pagos',
+          href: isTendero ? undefined : null,
+          tabBarIcon: ({ color }) => <Banknote size={24} color={color} strokeWidth={2} />,
+        }}
+      />
+      <Tabs.Screen
+        name="Asistenteia"
+        options={{
+          title: 'Asistente',
+          href: isTendero ? undefined : null,
+          tabBarIcon: ({ color }) => <Bot size={24} color={color} strokeWidth={2} />,
+        }}
+      />
       <Tabs.Screen
         name="vistaUsuario"
         options={{
