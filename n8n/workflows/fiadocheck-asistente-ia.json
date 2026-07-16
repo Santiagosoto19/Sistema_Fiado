@@ -1,0 +1,319 @@
+{
+  "name": "FiadoCheck — Asistente IA (Chat)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fiadocheck-asistente",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-webhook-0001",
+      "name": "Webhook Chat",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "fiadocheck-asistente-chat"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.message }}",
+        "options": {
+          "systemMessage": "=Eres el Asistente IA de FiadoCheck, un sistema de gestión de crédito informal para tenderos de barrio en Colombia.\n\nCONTEXTO DE SESIÓN:\n- id_tendero autenticado: {{ $('Webhook Chat').item.json.body.id_tendero }}\n- Todas las herramientas HTTP usan authToken (JWT) del webhook en Authorization: Bearer.\n- El backend Express aísla datos: solo clientes con relación activa en tendero_cliente para ese id_tendero.\n- NO pases id_tendero manualmente en URLs; el JWT ya lo resuelve en el servidor.\n\nREGLAS:\n- Responde SIEMPRE en español, tono cercano y profesional.\n- Montos en pesos colombianos (COP), formato $1.234.567.\n- La cédula del cliente es su id_cliente en el sistema.\n- Solo operas sobre la cartera del tendero autenticado.\n- Antes de crear créditos, pagos o clientes, confirma que tienes todos los datos.\n- Para registrar un pago necesitas: cédula del cliente, monto y (si hay varios créditos activos) el id_credito.\n- Para crear crédito: cédula, monto, fecha límite (YYYY-MM-DD) y opcionalmente descripción.\n- Para crear cliente: nombre, cédula (identificacion), teléfono y opcionalmente dirección.\n- Si falta información, pregunta al tendero antes de usar herramientas.\n\nHERRAMIENTAS: buscar_cliente, agregar_credito, agregar_pago, agregar_cliente.\n\nAl final, si ejecutaste una herramienta: ACTION:<nombre_herramienta>"
+        }
+      },
+      "id": "a1b2c3d4-agent-0002",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "a1b2c3d4-openai-0003",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.1,
+      "position": [480, 520],
+      "credentials": {
+        "openAiApi": {
+          "id": "REEMPLAZAR_CON_TU_CREDENTIAL_ID",
+          "name": "OpenAI FiadoCheck"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook Chat').item.json.body.sessionId }}",
+        "contextWindowLength": 10
+      },
+      "id": "a1b2c3d4-memory-0004",
+      "name": "Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.2,
+      "position": [680, 520]
+    },
+    {
+      "parameters": {
+        "name": "buscar_cliente",
+        "description": "Consulta información de un cliente: saldo, créditos activos e historial. Proporciona clienteId (cédula) para detalle completo, o query para buscar por nombre.",
+        "jsCode": "const base = process.env.FIADOCHECK_API_URL || 'http://host.docker.internal:3000/api';\nconst webhook = $('Webhook Chat').first().json.body;\nconst token = webhook.authToken;\nconst idTendero = webhook.id_tendero ?? webhook.metadata?.id_tendero;\n\nif (!token) {\n  return JSON.stringify({ error: 'authToken requerido: el backend filtra por tendero vía JWT' });\n}\n\nconst clienteId = $input.clienteId?.trim();\nconst query = $input.query?.trim();\n\nconst headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };\n\nasync function fetchJson(url) {\n  const res = await fetch(url, { headers });\n  const data = await res.json().catch(() => ({}));\n  return { status: res.status, data };\n}\n\nif (clienteId) {\n  const [detalle, historial, creditos] = await Promise.all([\n    fetchJson(`${base}/clientes/${encodeURIComponent(clienteId)}`),\n    fetchJson(`${base}/clientes/${encodeURIComponent(clienteId)}/historial`),\n    fetchJson(`${base}/creditos/cliente/${encodeURIComponent(clienteId)}`),\n  ]);\n  return JSON.stringify({ id_tendero: idTendero, detalle: detalle.data, historial: historial.data, creditos_activos: creditos.data });\n}\n\nif (query) {\n  const busqueda = await fetchJson(`${base}/clientes?q=${encodeURIComponent(query)}`);\n  return JSON.stringify({ id_tendero: idTendero, resultados: busqueda.data });\n}\n\nreturn JSON.stringify({ error: 'Debes proporcionar clienteId o query' });"
+      },
+      "id": "a1b2c3d4-tool-0005",
+      "name": "Tool — Buscar Cliente",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1,
+      "position": [880, 120]
+    },
+    {
+      "parameters": {
+        "name": "agregar_credito",
+        "description": "Registra un nuevo crédito (fiado) para un cliente existente en la cartera del tendero.",
+        "method": "POST",
+        "url": "={{ $env.FIADOCHECK_API_URL || 'http://host.docker.internal:3000/api' }}/creditos",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Webhook Chat').item.json.body.authToken }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"clienteId\": \"{{ $fromAI('clienteId', '', 'string') }}\",\n  \"montoTotal\": {{ $fromAI('montoTotal', 0, 'number') }},\n  \"descripcion\": \"{{ $fromAI('descripcion', '', 'string') }}\",\n  \"fechaLimitePago\": \"{{ $fromAI('fechaLimitePago', '', 'string') }}\"\n}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-tool-0006",
+      "name": "Tool — Agregar Crédito",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [880, 260]
+    },
+    {
+      "parameters": {
+        "name": "agregar_pago",
+        "description": "Registra un abono/pago sobre un crédito activo. Requiere id_credito (obtenerlo con buscar_cliente si el cliente tiene créditos activos), monto y opcionalmente fechaAbono en formato YYYY-MM-DD (default hoy).",
+        "method": "POST",
+        "url": "={{ $env.FIADOCHECK_API_URL || 'http://host.docker.internal:3000/api' }}/creditos/{{ $fromAI('creditoId', '', 'string') }}/abonos",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Webhook Chat').item.json.body.authToken }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"monto\": {{ $fromAI('monto', 0, 'number') }},\n  \"fechaAbono\": \"{{ $fromAI('fechaAbono', $now.format('yyyy-MM-dd'), 'string') }}\"\n}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-tool-0007",
+      "name": "Tool — Agregar Pago",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [880, 400]
+    },
+    {
+      "parameters": {
+        "name": "agregar_cliente",
+        "description": "Crea un cliente nuevo y lo vincula a la cartera del tendero autenticado.",
+        "method": "POST",
+        "url": "={{ $env.FIADOCHECK_API_URL || 'http://host.docker.internal:3000/api' }}/clientes",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Webhook Chat').item.json.body.authToken }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"nombre\": \"{{ $fromAI('nombre', '', 'string') }}\",\n  \"identificacion\": \"{{ $fromAI('identificacion', '', 'string') }}\",\n  \"telefono\": \"{{ $fromAI('telefono', '', 'string') }}\",\n  \"direccion\": \"{{ $fromAI('direccion', '', 'string') }}\"\n}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-tool-0008",
+      "name": "Tool — Agregar Cliente",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [880, 540]
+    },
+    {
+      "parameters": {
+        "jsCode": "const webhook = $('Webhook Chat').first().json.body;\nconst agentOut = $input.first().json;\n\nconst raw = agentOut.output ?? agentOut.text ?? '';\n\n// Extrae ACTION:<tool> si el agente lo incluyó\nconst actionMatch = raw.match(/ACTION:([a-z_]+)/i);\nconst action_executed = actionMatch ? actionMatch[1].toLowerCase() : null;\n\n// Limpia la línea ACTION del texto visible\nconst respuesta = raw.replace(/\\n?ACTION:[a-z_]+/gi, '').trim();\n\nconst sugerenciasPorAccion = {\n  buscar_cliente: ['Registrar un pago', 'Agregar crédito', 'Ver mora'],\n  agregar_credito: ['Consultar saldo', 'Registrar pago'],\n  agregar_pago: ['Ver historial', '¿Quién me debe más?'],\n  agregar_cliente: ['Agregar crédito', 'Buscar cliente'],\n};\n\nreturn [{\n  json: {\n    respuesta,\n    mensaje: respuesta,\n    action_executed,\n    sessionId: webhook.sessionId,\n    sugerencias: action_executed\n      ? (sugerenciasPorAccion[action_executed] ?? [])\n      : ['¿Quién me debe más?', 'Resumen del día', 'Créditos vencidos'],\n    success: true,\n  },\n}];"
+      },
+      "id": "a1b2c3d4-code-0009",
+      "name": "Formatear Respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "a1b2c3d4-respond-0010",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "content": "## FiadoCheck Asistente IA\n\n**Webhook POST:** `/webhook/fiadocheck-asistente`\n\n**Variables de entorno n8n:**\n- `FIADOCHECK_API_URL` → ej. `http://host.docker.internal:3000/api`\n\n**Credenciales:** OpenAI en nodo *OpenAI Chat Model*\n\n**Auth:** El hook debe enviar `authToken` (JWT del tendero) en el body para que las Tools llamen al backend Express.",
+        "height": 320,
+        "width": 420
+      },
+      "id": "a1b2c3d4-sticky-0011",
+      "name": "Notas de integración",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [220, 40]
+    }
+  ],
+  "connections": {
+    "Webhook Chat": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Formatear Respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Respuesta": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool — Buscar Cliente": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool — Agregar Crédito": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool — Agregar Pago": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool — Agregar Cliente": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "fiadocheck-asistente-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": [
+    {
+      "name": "FiadoCheck"
+    },
+    {
+      "name": "AI Agent"
+    }
+  ]
+}

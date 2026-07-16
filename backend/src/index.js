@@ -14,6 +14,7 @@ const analiticaRoutes = require('./routes/analitica');
 const reportesRoutes = require('./routes/reportes');
 const scoringRoutes = require('./routes/scoring');
 const pagosRoutes = require('./routes/pagos');
+const asistenteRoutes = require('./routes/asistente');
 
 const app = express();
 
@@ -38,6 +39,7 @@ app.use('/api/analitica', analiticaRoutes);
 app.use('/api/reportes', reportesRoutes);
 app.use('/api/scoring', scoringRoutes);
 app.use('/api/pagos', pagosRoutes);
+app.use('/api/asistente', asistenteRoutes);
 
 // Webhook ejemplo (n8n)
 app.post('/webhooks/test', (req, res) => {
@@ -61,13 +63,14 @@ app.use((err, req, res, next) => {
   res.status(status).json({ error: status === 500 ? 'Error interno del servidor' : err.message });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`=================================`);
   console.log(`Servidor FiadoCheck corriendo en puerto ${PORT}`);
   console.log(`=================================`);
   console.log(`Endpoints disponibles:`);
+  console.log(`  Health: GET /health`);
   console.log(`  Auth: /api/auth/login, /api/auth/logout`);
   console.log(`  Dashboard: /api/dashboard`);
   console.log(`  Cartera: /api/cartera, /api/cartera/cliente/:id, /api/cartera/vencidos`);
@@ -79,6 +82,19 @@ app.listen(PORT, () => {
   console.log(`  Analítica: /api/analitica/indicadores, /api/analitica/pagos-diarios, /api/analitica/prediccion-flujo`);
   console.log(`  Reportes: /api/reportes, /api/reportes/export/pdf`);
   console.log(`  Pagos: /api/pagos`);
+  console.log(`  Asistente IA: POST /api/asistente/chat`);
   console.log(`=================================`);
+  console.log(`Servidor activo. Deja esta terminal abierta (Ctrl+C para detener).`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\nEl puerto ${PORT} ya está en uso por otro proceso.`);
+    console.error('Cierra la instancia anterior o usa otro puerto:');
+    console.error(`  PORT=3001 node src/index.js\n`);
+  } else {
+    console.error('\nError al iniciar el servidor:', err.message);
+  }
+  process.exit(1);
 });
 

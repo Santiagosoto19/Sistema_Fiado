@@ -1,37 +1,10 @@
-const http = require('http');
+const { mlPost } = require('./mlServiceClient');
 
-function callMLService(clienteId) {
-  return new Promise((resolve, reject) => {
-    const postData = JSON.stringify({ id_cliente: parseInt(clienteId, 10) });
-    const options = {
-      hostname: 'localhost',
-      port: 8000,
-      path: '/predict',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(postData),
-      },
-    };
-
-    const req = http.request(options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        try {
-          const json = JSON.parse(data);
-          if (json.error) return reject(new Error(json.error));
-          resolve(json);
-        } catch (e) {
-          reject(e);
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.write(postData);
-    req.end();
-  });
+async function callMLService(clienteId) {
+  const postData = JSON.stringify({ id_cliente: parseInt(clienteId, 10) });
+  const json = await mlPost('/predict', postData);
+  if (json.error) throw new Error(json.error);
+  return json;
 }
 
 async function persistMLPrediction(pool, clienteId, nivelRiesgo, confianza) {
