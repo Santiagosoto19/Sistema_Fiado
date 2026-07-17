@@ -160,11 +160,34 @@ router.put('/profile', require('../middleware/auth'), async (req, res) => {
     const idUsuario = req.user.id_usuario;
     const idRol = Number(req.user.id_rol);
 
+    // Validaciones de formato
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return res.status(400).json({ error: 'El email no tiene un formato válido' });
+    }
+
+    const { nombre, nombre_tienda, telefono, direccion, nombre_completo } = otherData;
+
+    if (telefono !== undefined && telefono !== null && telefono !== '' && !/^[0-9]{7,10}$/.test(telefono.trim())) {
+      return res.status(400).json({ error: 'El teléfono debe tener entre 7 y 10 dígitos numéricos' });
+    }
+    if (nombre !== undefined && nombre !== null && !nombre.trim()) {
+      return res.status(400).json({ error: 'El nombre no puede estar vacío' });
+    }
+    if (nombre_completo !== undefined && nombre_completo !== null && !nombre_completo.trim()) {
+      return res.status(400).json({ error: 'El nombre completo no puede estar vacío' });
+    }
+    if (nombre_tienda !== undefined && nombre_tienda !== null && !nombre_tienda.trim()) {
+      return res.status(400).json({ error: 'El nombre de la tienda no puede estar vacío' });
+    }
+    if (direccion !== undefined && direccion !== null && !direccion.trim()) {
+      return res.status(400).json({ error: 'La dirección no puede estar vacía' });
+    }
+
     await pool.query('BEGIN');
 
     // 1. Actualizar datos básicos del usuario
     if (email) {
-      await pool.query('UPDATE usuario SET email = $1 WHERE id_usuario = $2', [email, idUsuario]);
+      await pool.query('UPDATE usuario SET email = $1 WHERE id_usuario = $2', [email.trim(), idUsuario]);
     }
     if (foto_perfil) {
       await pool.query('UPDATE usuario SET foto_perfil = $1 WHERE id_usuario = $2', [foto_perfil, idUsuario]);
@@ -172,16 +195,14 @@ router.put('/profile', require('../middleware/auth'), async (req, res) => {
 
     // 2. Actualizar datos específicos según rol
     if (idRol === 1) { // Tendero
-      const { nombre, nombre_tienda, telefono, direccion } = otherData;
       await pool.query(
         'UPDATE tenderos SET nombre = COALESCE($1, nombre), nombre_tienda = COALESCE($2, nombre_tienda), telefono = COALESCE($3, telefono), direccion = COALESCE($4, direccion) WHERE id_usuario = $5',
-        [nombre, nombre_tienda, telefono, direccion, idUsuario]
+        [nombre?.trim(), nombre_tienda?.trim(), telefono?.trim(), direccion?.trim(), idUsuario]
       );
     } else if (idRol === 2) { // Cliente
-      const { nombre_completo, telefono, direccion } = otherData;
       await pool.query(
         'UPDATE clientes SET nombre_completo = COALESCE($1, nombre_completo), telefono = COALESCE($2, telefono), direccion = COALESCE($3, direccion) WHERE id_usuario = $4',
-        [nombre_completo, telefono, direccion, idUsuario]
+        [nombre_completo?.trim(), telefono?.trim(), direccion?.trim(), idUsuario]
       );
     }
 
@@ -190,6 +211,30 @@ router.put('/profile', require('../middleware/auth'), async (req, res) => {
   } catch (err) {
     await pool.query('ROLLBACK');
     console.error('Error actualizando perfil:', err);
+
+    if (err.code === '23505' && err.detail && err.detail.includes('email')) {
+      return res.status(400).json({ error: 'Ese email ya está registrado por otro usuario' });
+    }
+
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// PUT /api/auth/push-token
+router.put('/push-token', require('../middleware/auth'), async (req, res) => {
+  try {
+    const { pushToken } = req.body;
+    const idUsuario = req.user.id_usuario;
+
+    if (!pushToken) {
+      return res.status(400).json({ error: 'pushToken es requerido' });
+    }
+
+    await pool.query('UPDATE usuario SET push_token = $1 WHERE id_usuario = $2', [pushToken, idUsuario]);
+
+    res.json({ message: 'Push token actualizado correctamente' });
+  } catch (err) {
+    console.error('Error actualizando push token:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -202,6 +247,12 @@ router.put('/change-password', require('../middleware/auth'), async (req, res) =
 
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ error: 'Contraseña actual y nueva son requeridas' });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 8 caracteres' });
+    }
+    if (!/[A-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      return res.status(400).json({ error: 'La nueva contraseña debe tener al menos una mayúscula y un número' });
     }
 
     const result = await pool.query('SELECT password FROM usuario WHERE id_usuario = $1', [idUsuario]);

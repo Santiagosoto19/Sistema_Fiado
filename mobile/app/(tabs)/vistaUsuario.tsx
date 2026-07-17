@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { vistaUsuarioStyles as styles } from '@/constants/vistaUsuario.styles';
@@ -17,6 +17,7 @@ import { useVistaUsuario } from '@/hooks/useVistaUsuario';
 import { formatNivelRiesgo, getRiesgoColor } from '@/utils/scoring';
 
 const VistaUsuario = () => {
+  const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
 
   useFocusEffect(
@@ -113,27 +114,47 @@ const VistaUsuario = () => {
           <View style={styles.movementsSection}>
             <Text style={styles.movementsTitle}>Ultimos Movimientos</Text>
             <View style={styles.movements}>
-              {movements.map(item => (
-                <View key={item.id} style={styles.movementRow}>
-                  <View
-                    style={[
-                      styles.iconCircle,
-                      { backgroundColor: item.bgColor },
-                    ]}
-                  >
-                    <Text style={[styles.iconText, { color: item.signColor }]}>
-                      {item.tipo === 'ABONO' ? '+' : '−'}
+              {movements.map(item => {
+                const content = (
+                  <>
+                    <View
+                      style={[
+                        styles.iconCircle,
+                        { backgroundColor: item.bgColor },
+                      ]}
+                    >
+                      <Text style={[styles.iconText, { color: item.signColor }]}>
+                        {item.tipo === 'ABONO' ? '+' : '−'}
+                      </Text>
+                    </View>
+                    <View style={styles.movementTextColumn}>
+                      <Text style={styles.movementDesc}>{item.descripcion}</Text>
+                      <Text style={styles.movementDate}>{item.fecha}</Text>
+                    </View>
+                    <Text style={styles.movementAmount}>
+                      ${item.monto.toLocaleString()}
                     </Text>
+                  </>
+                );
+
+                if (item.tipo === 'CARGO' && item.id_credito) {
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.movementRow}
+                      onPress={() => router.push({ pathname: '/creditoDetalle', params: { id: String(item.id_credito) } } as any)}
+                    >
+                      {content}
+                    </TouchableOpacity>
+                  );
+                }
+
+                return (
+                  <View key={item.id} style={styles.movementRow}>
+                    {content}
                   </View>
-                  <View style={styles.movementTextColumn}>
-                    <Text style={styles.movementDesc}>{item.descripcion}</Text>
-                    <Text style={styles.movementDate}>{item.fecha}</Text>
-                  </View>
-                  <Text style={styles.movementAmount}>
-                    ${item.monto.toLocaleString()}
-                  </Text>
-                </View>
-              ))}
+                );
+              })}
             </View>
           </View>
 

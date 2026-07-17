@@ -60,13 +60,16 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const idTendero = req.user.id_tendero;
+    const idUsuario = req.user.id_usuario;
 
     const credito = await pool.query(`
-      SELECT cr.*, cl.nombre_completo as nombre_cliente, cl.telefono, cl.direccion
+      SELECT cr.*, cl.nombre_completo as nombre_cliente, cl.telefono, cl.direccion,
+             t.nombre as nombre_tendero, t.nombre_tienda
       FROM creditos cr
       JOIN clientes cl ON cr.id_cliente = cl.id_cliente
-      WHERE cr.id_credito = $1 AND cr.id_tendero = $2
-    `, [id, idTendero]);
+      JOIN tenderos t ON cr.id_tendero = t.id_tendero
+      WHERE cr.id_credito = $1 AND (cr.id_tendero = $2 OR cl.id_usuario = $3)
+    `, [id, idTendero, idUsuario]);
 
     if (credito.rows.length === 0) {
       return res.status(404).json({ error: 'Crédito no encontrado' });
@@ -94,6 +97,8 @@ router.get('/:id', async (req, res) => {
       nombre_cliente: c.nombre_cliente,
       telefono: c.telefono,
       direccion: c.direccion,
+      nombre_tendero: c.nombre_tendero,
+      nombre_tienda: c.nombre_tienda,
       monto_total: parseFloat(c.monto_total),
       saldo_pendiente: parseFloat(c.saldo_pendiente),
       total_abonado: totalAbonado,

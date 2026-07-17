@@ -29,6 +29,7 @@ export type Movimiento = {
   monto: number;
   bgColor: string;
   signColor: string;
+  id_credito?: number;
 };
 
 export type UserData = {
@@ -122,6 +123,7 @@ export const useVistaUsuario = (token: string | null) => {
             monto: item.credito.monto_total,
             bgColor: '#FFCDD2',
             signColor: '#E53935',
+            id_credito: item.credito.id_credito,
           });
           item.abonos?.forEach((abono: any) => {
             const fechaAbono = abono.fecha_abono?.split('T')[0] ?? '';

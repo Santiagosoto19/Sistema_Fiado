@@ -30,7 +30,7 @@ const getBadgeStyles = (tipo: EstadoBadge) => {
 };
 
 export default function PerfilClienteScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, creditoId } = useLocalSearchParams<{ id: string; creditoId?: string }>();
   const [token, setToken] = useState<string | null>(null);
 
   useFocusEffect(
@@ -88,7 +88,7 @@ export default function PerfilClienteScreen() {
             <ArrowLeft size={22} color={COLORS.white} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Perfil Del Cliente</Text>
-          <TouchableOpacity style={styles.bellBtn}>
+          <TouchableOpacity style={styles.bellBtn} onPress={() => router.push('/notificaciones' as any)}>
             <Bell size={20} color={COLORS.primary} />
           </TouchableOpacity>
         </View>
@@ -137,6 +137,7 @@ export default function PerfilClienteScreen() {
                     style={[
                       styles.historialRow,
                       idx < perfil.historial.length - 1 && styles.historialDivider,
+                      creditoId && String(item.id_credito) === String(creditoId) && styles.historialRowHighlight,
                     ]}
                   >
                     <View style={{ flex: 1 }}>

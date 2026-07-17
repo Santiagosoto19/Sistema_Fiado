@@ -17,6 +17,7 @@ import {
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
+import { usePushNotificationListener, registerPushToken } from '@/hooks/usePushNotifications';
 
 
 export const unstable_settings = {
@@ -27,6 +28,7 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   useSessionTimeout();
+  usePushNotificationListener();
   const colorScheme = useColorScheme();
   const router = useRouter();
   const segments = useSegments();
@@ -58,12 +60,18 @@ export default function RootLayout() {
       try {
         const token = await AsyncStorage.getItem('token');
 
+        if (token) {
+          registerPushToken(token);
+        }
+
         const inAuthGroup = segment0 === '(auth)';
         const inTabsGroup = segment0 === '(tabs)';
         const inVistaUsuario = segment0 === 'vistaUsuario';
         const inAddCredit = segment0 === 'addcredit';
         const inRegisterPayment = segment0 === 'registerpayment';
-        const isProtected = inTabsGroup || inVistaUsuario || inAddCredit || inRegisterPayment;
+        const inCreditoDetalle = segment0 === 'creditoDetalle';
+        const inNotificaciones = segment0 === 'notificaciones';
+        const isProtected = inTabsGroup || inVistaUsuario || inAddCredit || inRegisterPayment || inCreditoDetalle || inNotificaciones;
 
         if (!token && isProtected) {
           router.replace('/(auth)/home' as any);
@@ -121,6 +129,8 @@ return (
             <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
             <Stack.Screen name="addcredit" options={{ presentation: 'modal' }} />
             <Stack.Screen name="registerpayment" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="creditoDetalle" />
+            <Stack.Screen name="notificaciones" />
           </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>

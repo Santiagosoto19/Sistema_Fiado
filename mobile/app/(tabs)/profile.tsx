@@ -9,7 +9,8 @@ import {
   StatusBar,
   Modal,
   TextInput,
-  ScrollView
+  ScrollView,
+  ActivityIndicator
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -46,6 +47,8 @@ export default function ProfileScreen() {
     newPassword: '',
     confirmPassword: ''
   });
+  const [saving, setSaving] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const applyProfileData = (profileData: any) => {
     setUser(profileData);
@@ -89,6 +92,7 @@ export default function ProfileScreen() {
       return false;
     }
 
+    setSaving(true);
     try {
       const response = await fetch(`${CONFIG.API_URL}/auth/profile`, {
         method: 'PUT',
@@ -112,7 +116,56 @@ export default function ProfileScreen() {
     } catch {
       Alert.alert('Error', 'Error de conexión con el servidor');
       return false;
+    } finally {
+      setSaving(false);
     }
+  };
+
+  // Valida el formato de cada campo antes de permitir guardar. Devuelve un
+  // mensaje de error especifico, o null si todo es valido.
+  const validateProfileForm = (): string | null => {
+    const email = profileForm.email.trim();
+    const telefono = profileForm.telefono.trim();
+    const direccion = profileForm.direccion.trim();
+    const nombreTendero = profileForm.nombre.trim();
+    const nombreTienda = profileForm.nombre_tienda.trim();
+    const nombreCliente = profileForm.nombre_completo.trim();
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const soloLetras = /^[A-Za-zÀ-ÿ\s]+$/;
+
+    if (email && !emailRegex.test(email)) {
+      return 'El correo electrónico no tiene un formato válido (ej. nombre@correo.com).';
+    }
+
+    if (Number(user?.id_rol) === 1) {
+      if (!nombreTendero || nombreTendero.length < 3) {
+        return 'El nombre completo debe tener al menos 3 caracteres.';
+      }
+      if (!soloLetras.test(nombreTendero)) {
+        return 'El nombre completo solo puede contener letras y espacios.';
+      }
+      if (nombreTienda && nombreTienda.length < 3) {
+        return 'El nombre de la tienda debe tener al menos 3 caracteres.';
+      }
+    } else {
+      if (!nombreCliente || nombreCliente.length < 3) {
+        return 'El nombre completo debe tener al menos 3 caracteres.';
+      }
+      if (!soloLetras.test(nombreCliente)) {
+        return 'El nombre completo solo puede contener letras y espacios.';
+      }
+    }
+
+    if (telefono && !/^[0-9]{7,10}$/.test(telefono)) {
+      return 'El teléfono debe tener entre 7 y 10 dígitos numéricos, sin espacios ni guiones.';
+    }
+
+    if (direccion && direccion.length < 5) {
+      return 'La dirección debe tener al menos 5 caracteres.';
+    }
+
+    return null;
   };
 
   useEffect(() => {
@@ -185,15 +238,32 @@ export default function ProfileScreen() {
         : asset.uri;
 
       setProfileForm(prev => ({ ...prev, foto_perfil: imageValue }));
-      await saveProfileData({ foto_perfil: imageValue }, 'Foto de perfil actualizada correctamente', false);
+
+      Alert.alert(
+        'Confirmar Foto de Perfil',
+        '¿Deseas guardar esta foto como tu nueva foto de perfil?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Guardar',
+            onPress: async () => {
+              await saveProfileData({ foto_perfil: imageValue }, 'Foto de perfil actualizada correctamente', false);
+            }
+          }
+        ]
+      );
     }
   };
 
   const handleUpdateProfile = async () => {
-    const isOnlyImageSave = profileForm.foto_perfil && !profileForm.email && !profileForm.nombre && !profileForm.nombre_completo;
-
-    if (!isOnlyImageSave && (!profileForm.email || (Number(user?.id_rol) === 1 && !profileForm.nombre) || (Number(user?.id_rol) === 2 && !profileForm.nombre_completo))) {
+    if (!profileForm.email) {
       Alert.alert('Error', 'Por favor, completa los campos obligatorios.');
+      return;
+    }
+
+    const validationError = validateProfileForm();
+    if (validationError) {
+      Alert.alert('Revisa la información', validationError);
       return;
     }
 
@@ -205,7 +275,16 @@ export default function ProfileScreen() {
         {
           text: 'Guardar',
           onPress: async () => {
-            await saveProfileData(profileForm, 'Perfil actualizado correctamente');
+            const trimmedPayload = {
+              ...profileForm,
+              email: profileForm.email.trim(),
+              nombre: profileForm.nombre.trim(),
+              nombre_tienda: profileForm.nombre_tienda.trim(),
+              telefono: profileForm.telefono.trim(),
+              direccion: profileForm.direccion.trim(),
+              nombre_completo: profileForm.nombre_completo.trim(),
+            };
+            await saveProfileData(trimmedPayload, 'Perfil actualizado correctamente');
           }
         }
       ]
@@ -213,12 +292,28 @@ export default function ProfileScreen() {
   };
 
   const handleChangePassword = async () => {
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      Alert.alert('Error', 'Las nuevas contraseñas no coinciden');
+    if (!passwordForm.currentPassword) {
+      Alert.alert('Error', 'Ingresa tu contraseña actual.');
       return;
     }
     if (passwordForm.newPassword.length < 8) {
       Alert.alert('Error', 'La nueva contraseña debe tener al menos 8 caracteres');
+      return;
+    }
+    if (!/[A-Z]/.test(passwordForm.newPassword)) {
+      Alert.alert('Error', 'La nueva contraseña debe tener al menos una letra mayúscula');
+      return;
+    }
+    if (!/[0-9]/.test(passwordForm.newPassword)) {
+      Alert.alert('Error', 'La nueva contraseña debe tener al menos un número');
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      Alert.alert('Error', 'Las nuevas contraseñas no coinciden');
+      return;
+    }
+    if (passwordForm.newPassword === passwordForm.currentPassword) {
+      Alert.alert('Error', 'La nueva contraseña debe ser diferente a la actual.');
       return;
     }
 
@@ -230,6 +325,7 @@ export default function ProfileScreen() {
         {
           text: 'Actualizar',
           onPress: async () => {
+            setChangingPassword(true);
             try {
               const response = await fetch(`${CONFIG.API_URL}/auth/change-password`, {
                 method: 'PUT',
@@ -253,6 +349,8 @@ export default function ProfileScreen() {
               }
             } catch {
               Alert.alert('Error', 'Error de conexión con el servidor');
+            } finally {
+              setChangingPassword(false);
             }
           }
         }
@@ -269,7 +367,7 @@ export default function ProfileScreen() {
           <ChevronLeft size={24} color={COLORS.white} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Perfil</Text>
-        <TouchableOpacity style={styles.bellBtn}>
+        <TouchableOpacity style={styles.bellBtn} onPress={() => router.push('/notificaciones' as any)}>
           <Bell size={24} color={COLORS.white} />
         </TouchableOpacity>
       </View>
@@ -296,6 +394,28 @@ export default function ProfileScreen() {
         <Text style={styles.userName}>
           {user?.nombre_completo || user?.nombre || user?.email || 'Cargando...'}
         </Text>
+        {user?.id_rol && (
+          <View
+            style={{
+              backgroundColor: Number(user.id_rol) === 1 ? '#BFEBC4' : '#D6E4FF',
+              paddingHorizontal: 12,
+              paddingVertical: 4,
+              borderRadius: 12,
+              marginTop: 4,
+              marginBottom: 4,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 12,
+                fontWeight: '700',
+                color: Number(user.id_rol) === 1 ? COLORS.primary : '#2955C9',
+              }}
+            >
+              {Number(user.id_rol) === 1 ? 'Tendero' : 'Cliente'}
+            </Text>
+          </View>
+        )}
         <Text style={styles.userId}>
           ID: {user?.id_cliente || user?.id_tendero || user?.id_usuario || '...'}
         </Text>
@@ -343,11 +463,31 @@ export default function ProfileScreen() {
             <Text style={styles.modalTitle}>Editar Perfil</Text>
             <ScrollView>
               <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20, justifyContent: 'center', gap: 10 }}>
-                <Image
-                  source={{ uri: profileForm.foto_perfil || DEFAULT_AVATAR }}
-                  style={[styles.profileImage, { width: 60, height: 60, borderRadius: 30 }]}
-                />
-                <TouchableOpacity onPress={pickImage} style={{ backgroundColor: COLORS.primary, padding: 8, borderRadius: 10 }}>
+                <View>
+                  <Image
+                    source={{ uri: profileForm.foto_perfil || DEFAULT_AVATAR }}
+                    style={[styles.profileImage, { width: 60, height: 60, borderRadius: 30 }]}
+                  />
+                  {saving && (
+                    <View
+                      style={{
+                        position: 'absolute',
+                        top: 0, left: 0, right: 0, bottom: 0,
+                        borderRadius: 30,
+                        backgroundColor: 'rgba(0,0,0,0.35)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <ActivityIndicator size="small" color={COLORS.white} />
+                    </View>
+                  )}
+                </View>
+                <TouchableOpacity
+                  onPress={pickImage}
+                  disabled={saving}
+                  style={{ backgroundColor: COLORS.primary, padding: 8, borderRadius: 10, opacity: saving ? 0.6 : 1 }}
+                >
                   <Camera size={20} color={COLORS.white} />
                 </TouchableOpacity>
               </TouchableOpacity>
@@ -359,6 +499,8 @@ export default function ProfileScreen() {
                   value={profileForm.email}
                   onChangeText={(t) => setProfileForm({ ...profileForm, email: t })}
                   keyboardType="email-address"
+                  autoCapitalize="none"
+                  maxLength={255}
                 />
               </View>
 
@@ -370,6 +512,7 @@ export default function ProfileScreen() {
                       style={styles.input}
                       value={profileForm.nombre}
                       onChangeText={(t) => setProfileForm({ ...profileForm, nombre: t })}
+                      maxLength={255}
                     />
                   </View>
                   <View style={styles.inputGroup}>
@@ -378,6 +521,7 @@ export default function ProfileScreen() {
                       style={styles.input}
                       value={profileForm.nombre_tienda}
                       onChangeText={(t) => setProfileForm({ ...profileForm, nombre_tienda: t })}
+                      maxLength={255}
                     />
                   </View>
                 </>
@@ -388,6 +532,7 @@ export default function ProfileScreen() {
                       style={styles.input}
                       value={profileForm.nombre_completo}
                       onChangeText={(t) => setProfileForm({ ...profileForm, nombre_completo: t })}
+                      maxLength={255}
                   />
                 </View>
               )}
@@ -397,8 +542,9 @@ export default function ProfileScreen() {
                 <TextInput
                   style={styles.input}
                   value={profileForm.telefono}
-                  onChangeText={(t) => setProfileForm({ ...profileForm, telefono: t })}
+                  onChangeText={(t) => setProfileForm({ ...profileForm, telefono: t.replace(/[^0-9]/g, '') })}
                   keyboardType="phone-pad"
+                  maxLength={10}
                 />
               </View>
 
@@ -408,6 +554,7 @@ export default function ProfileScreen() {
                   style={styles.input}
                   value={profileForm.direccion}
                   onChangeText={(t) => setProfileForm({ ...profileForm, direccion: t })}
+                  maxLength={255}
                 />
               </View>
 
@@ -415,14 +562,16 @@ export default function ProfileScreen() {
                 <TouchableOpacity
                   style={styles.modalBtnCancel}
                   onPress={() => setEditModalVisible(false)}
+                  disabled={saving}
                 >
                   <Text style={styles.modalBtnTextCancel}>Cancelar</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.modalBtnConfirm}
+                  style={[styles.modalBtnConfirm, saving && { opacity: 0.6 }]}
                   onPress={handleUpdateProfile}
+                  disabled={saving}
                 >
-                  <Text style={styles.modalBtnTextConfirm}>Guardar</Text>
+                  <Text style={styles.modalBtnTextConfirm}>{saving ? 'Guardando...' : 'Guardar'}</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -465,18 +614,44 @@ export default function ProfileScreen() {
                 onChangeText={(t) => setPasswordForm({ ...passwordForm, confirmPassword: t })}
               />
             </View>
+
+            {passwordForm.newPassword.length > 0 && (
+              <View style={{ marginBottom: 16 }}>
+                {[
+                  { label: 'Al menos 8 caracteres', ok: passwordForm.newPassword.length >= 8 },
+                  { label: 'Al menos una mayúscula', ok: /[A-Z]/.test(passwordForm.newPassword) },
+                  { label: 'Al menos un número', ok: /[0-9]/.test(passwordForm.newPassword) },
+                  {
+                    label: 'Las contraseñas coinciden',
+                    ok: passwordForm.confirmPassword.length > 0 && passwordForm.newPassword === passwordForm.confirmPassword,
+                  },
+                ].map((req) => (
+                  <View key={req.label} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                    <Text style={{ color: req.ok ? COLORS.primary : '#E53935', fontSize: 13, marginRight: 6 }}>
+                      {req.ok ? '✓' : '✗'}
+                    </Text>
+                    <Text style={{ color: req.ok ? COLORS.primary : '#9E9E9E', fontSize: 13 }}>
+                      {req.label}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
             <View style={styles.modalBtnRow}>
               <TouchableOpacity
                 style={styles.modalBtnCancel}
                 onPress={() => setPasswordModalVisible(false)}
+                disabled={changingPassword}
               >
                 <Text style={styles.modalBtnTextCancel}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.modalBtnConfirm}
+                style={[styles.modalBtnConfirm, changingPassword && { opacity: 0.6 }]}
                 onPress={handleChangePassword}
+                disabled={changingPassword}
               >
-                <Text style={styles.modalBtnTextConfirm}>Actualizar</Text>
+                <Text style={styles.modalBtnTextConfirm}>{changingPassword ? 'Actualizando...' : 'Actualizar'}</Text>
               </TouchableOpacity>
             </View>
           </View>

@@ -177,6 +177,10 @@ export const perfilClienteStyles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
+  historialRowHighlight: {
+    backgroundColor: '#E8F5EE',
+    borderRadius: 10,
+  },
   historialTitulo: {
     fontSize: 13,
     fontWeight: '600',
