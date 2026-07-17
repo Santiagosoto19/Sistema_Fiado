@@ -1,0 +1,36 @@
+name: Deploy API to Azure
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'backend/**'
+      - '!backend/ml_service/**'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependencias
+        working-directory: backend
+        run: npm install --omit=dev
+
+      - name: Armar paquete limpio (sin ml_service, sin .env)
+        run: |
+          mkdir -p clean-api
+          rsync -av --exclude='ml_service' --exclude='.env' --exclude='node_modules' backend/ clean-api/
+          cp -r backend/node_modules clean-api/node_modules
+
+      - name: Deploy a Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: fiadocheck-api
+          publish-profile: ${{ secrets.AZURE_API_PUBLISH_PROFILE }}
+          package: clean-api
