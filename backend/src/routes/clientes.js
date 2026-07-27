@@ -97,20 +97,22 @@ router.get('/', async (req, res) => {
     `;
     const params = [idTendero];
 
-    if (estado === 'mora') {
-      query += ` AND COALESCE(SUM(CASE WHEN cr.estado != 'pagado' THEN cr.saldo_pendiente ELSE 0 END), 0) > 0`;
-    } else if (estado === 'al_dia') {
-      query += ` AND EXISTS (SELECT 1 FROM creditos WHERE id_cliente = c.id_cliente AND id_tendero = $1 AND estado = 'vigente') AND NOT EXISTS (SELECT 1 FROM creditos WHERE id_cliente = c.id_cliente AND id_tendero = $1 AND estado = 'vencido')`;
-    } else if (estado === 'sin_deuda') {
-      query += ` AND NOT EXISTS (SELECT 1 FROM creditos WHERE id_cliente = c.id_cliente AND id_tendero = $1 AND saldo_pendiente > 0)`;
-    }
-
     if (q) {
       query += ` AND (c.nombre_completo ILIKE $${params.length + 1} OR c.id_cliente::text ILIKE $${params.length + 1})`;
       params.push(`%${q}%`);
     }
 
-    query += ` GROUP BY c.id_cliente, c.nombre_completo, c.telefono, c.direccion, c.estado, c.created_at ORDER BY c.created_at DESC`;
+    query += ` GROUP BY c.id_cliente, c.nombre_completo, c.telefono, c.direccion, c.estado, c.created_at`;
+
+    if (estado === 'mora') {
+      query += ` HAVING COALESCE(SUM(CASE WHEN cr.estado != 'pagado' THEN cr.saldo_pendiente ELSE 0 END), 0) > 0`;
+    } else if (estado === 'al_dia') {
+      query += ` HAVING COUNT(CASE WHEN cr.estado = 'vigente' THEN 1 END) > 0 AND COUNT(CASE WHEN cr.estado = 'vencido' THEN 1 END) = 0`;
+    } else if (estado === 'sin_deuda') {
+      query += ` HAVING COALESCE(SUM(CASE WHEN cr.saldo_pendiente > 0 THEN cr.saldo_pendiente ELSE 0 END), 0) = 0`;
+    }
+
+    query += ` ORDER BY total_deuda DESC`;
 
     const result = await pool.query(query, params);
 
