@@ -98,7 +98,7 @@ router.get('/', async (req, res) => {
     const params = [idTendero];
 
     if (estado === 'mora') {
-      query += ` AND EXISTS (SELECT 1 FROM creditos WHERE id_cliente = c.id_cliente AND id_tendero = $1 AND estado = 'vencido')`;
+      query += ` AND COALESCE(SUM(CASE WHEN cr.estado != 'pagado' THEN cr.saldo_pendiente ELSE 0 END), 0) > 0`;
     } else if (estado === 'al_dia') {
       query += ` AND EXISTS (SELECT 1 FROM creditos WHERE id_cliente = c.id_cliente AND id_tendero = $1 AND estado = 'vigente') AND NOT EXISTS (SELECT 1 FROM creditos WHERE id_cliente = c.id_cliente AND id_tendero = $1 AND estado = 'vencido')`;
     } else if (estado === 'sin_deuda') {
