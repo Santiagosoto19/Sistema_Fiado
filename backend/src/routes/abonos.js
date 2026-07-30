@@ -1,4 +1,4 @@
-/* prueba */
+/* prueba para ver si srive la api - ultima prueba */
 const express = require('express');
 const pool = require('../config/database');
 const authMiddleware = require('../middleware/auth');

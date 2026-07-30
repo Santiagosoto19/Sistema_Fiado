@@ -68,16 +68,41 @@ router.post('/chat', async (req, res) => {
     const json = await n8nRes.json().catch(() => ({}));
 
     if (!n8nRes.ok) {
+      const mensajeError = [
+        json?.error,
+        json?.message,
+        json?.detail,
+      ].find(Boolean) || 'Error al contactar el asistente IA';
+
+      const isInactive = /not active|workflow.*inactive|workflow.*not.*active|inactive workflow/i.test(mensajeError);
+      const errorFinal = isInactive
+        ? 'El workflow de n8n está inactivo. Actívalo desde n8n y vuelve a intentarlo.'
+        : mensajeError;
+
       return res.status(n8nRes.status).json({
-        error: json.error || json.message || 'Error al contactar el asistente IA',
+        error: errorFinal,
       });
     }
+
+    const writeActions = new Set(['agregar_credito', 'agregar_pago', 'agregar_cliente']);
+    const actionExecuted = json.action_executed ?? null;
+    const isWriteAction = actionExecuted && writeActions.has(actionExecuted);
+
+    const refreshScope = isWriteAction
+      ? actionExecuted === 'agregar_cliente'
+        ? ['clientes']
+        : actionExecuted === 'agregar_credito'
+        ? ['clientes', 'dashboard']
+        : ['clientes', 'dashboard', 'pagos'] // agregar_pago
+      : null;
 
     res.json({
       respuesta: json.respuesta ?? json.mensaje ?? json.output ?? '',
       mensaje: json.mensaje ?? json.respuesta ?? json.output ?? '',
       sugerencias: json.sugerencias ?? [],
-      action_executed: json.action_executed ?? null,
+      action_executed: actionExecuted,
+      refresh: isWriteAction ? true : false,
+      refresh_scope: refreshScope,
       sessionId: json.sessionId ?? payload.sessionId,
       success: json.success !== false,
     });

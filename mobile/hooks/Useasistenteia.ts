@@ -18,11 +18,19 @@ export type Mensaje = {
   opciones?: string[];
 };
 
+export type ActionBanner = {
+  visible: boolean;
+  accion: string;
+  mensaje: string;
+} | null;
+
 type ChatResponse = {
   respuesta?: string;
   mensaje?: string;
   sugerencias?: string[];
   action_executed?: string | null;
+  refresh?: boolean;
+  refresh_scope?: string[];
   error?: string;
   success?: boolean;
 };
@@ -61,6 +69,7 @@ export const useAsistenteIA = (token: string, id_tendero: string) => {
   const [mensajes, setMensajes] = useState<Mensaje[]>(BIENVENIDA);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [actionBanner, setActionBanner] = useState<ActionBanner>(null);
   const scrollRef = useRef<ScrollView>(null);
 
   const scrollToBottom = () => {
@@ -129,6 +138,37 @@ export const useAsistenteIA = (token: string, id_tendero: string) => {
           opciones: json.sugerencias,
         });
       }
+
+      // Si el asistente ejecutó una acción de escritura, mostrar banner y refrescar datos
+      if (json.refresh && json.action_executed) {
+        const bannerMensajes: Record<string, string> = {
+          agregar_cliente: '✅ Cliente vinculado correctamente a tu cartera',
+          agregar_credito: '✅ Crédito registrado correctamente',
+          agregar_pago: '✅ Pago registrado correctamente',
+        };
+        setActionBanner({
+          visible: true,
+          accion: json.action_executed,
+          mensaje: bannerMensajes[json.action_executed] ?? '✅ Acción realizada',
+        });
+        setTimeout(() => setActionBanner(null), 4000);
+
+        // Invalidar caché de AsyncStorage para forzar re-fetch en la app
+        const cacheKeysToInvalidate: string[] = [];
+        const scope = json.refresh_scope ?? [];
+        if (scope.includes('clientes')) {
+          cacheKeysToInvalidate.push('clientes_cache', 'clientesPerfil_cache');
+        }
+        if (scope.includes('dashboard')) {
+          cacheKeysToInvalidate.push('dashboard_cache');
+        }
+        if (scope.includes('pagos')) {
+          cacheKeysToInvalidate.push('pagos_cache');
+        }
+        if (cacheKeysToInvalidate.length > 0) {
+          await AsyncStorage.multiRemove(cacheKeysToInvalidate).catch(() => {});
+        }
+      }
     } catch (err: any) {
       pushMensaje({
         id: uid(),
@@ -153,6 +193,7 @@ export const useAsistenteIA = (token: string, id_tendero: string) => {
     setInput,
     loading,
     scrollRef,
+    actionBanner,
     handleEnviar,
     handleCancelar,
     handleSugerencia,
