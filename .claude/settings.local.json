@@ -13,7 +13,28 @@
       "Bash(curl -v http://localhost:3000/health)",
       "Bash(npm install *)",
       "Bash(npm list *)",
-      "Bash(npx expo *)"
+      "Bash(npx expo *)",
+      "Bash(node --check src/routes/scoring.js)",
+      "Bash(node --check src/utils/mlScoring.js)",
+      "Bash(node --check src/utils/scoringUtils.js)",
+      "Bash(node --check src/routes/clientes.js)",
+      "Bash(rtk ls *)",
+      "Bash(py --version)",
+      "Bash(rtk grep *)",
+      "Bash(./venv/Scripts/python.exe predict.py)",
+      "Bash(npm start *)",
+      "Bash(rtk curl *)",
+      "Bash(rtk read *)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill //PID 1648 //F)",
+      "Bash(taskkill //PID 14340 //F)",
+      "Bash(PORT=8000 ./venv/Scripts/python.exe predict.py)",
+      "Bash(curl -s http://localhost:3000/api/scoring/99900011 -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZF91c3VhcmlvIjoiMTI5IiwiZW1haWwiOiJ0ZXN0LXNjb3JpbmctdGVuZGVyb0BleGFtcGxlLmNvbSIsImlkX3JvbCI6IjEiLCJpZF90ZW5kZXJvIjoiODg4MDAwMTEiLCJpYXQiOjE3ODU0NDUzODQsImV4cCI6MTc4NTUzMTc4NH0.OMFycWeFpUU1BrNgXwju-LkQYjff8b4z7U_VLa-b1qE')",
+      "Bash(curl -s http://localhost:3000/api/scoring/99900011/recomendacion -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZF91c3VhcmlvIjoiMTI5IiwiZW1haWwiOiJ0ZXN0LXNjb3JpbmctdGVuZGVyb0BleGFtcGxlLmNvbSIsImlkX3JvbCI6IjEiLCJpZF90ZW5kZXJvIjoiODg4MDAwMTEiLCJpYXQiOjE3ODU0NDUzODQsImV4cCI6MTc4NTUzMTc4NH0.OMFycWeFpUU1BrNgXwju-LkQYjff8b4z7U_VLa-b1qE')",
+      "Bash(node scripts/_tmp_cleanup_test_data.js)",
+      "Bash(taskkill //PID 17968 //F)",
+      "Bash(taskkill //PID 9924 //F)",
+      "Bash(rtk git *)"
     ]
   }
 }

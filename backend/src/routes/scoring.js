@@ -3,7 +3,7 @@ const pool = require('../config/database');
 const authMiddleware = require('../middleware/auth');
 const { triggerMLRetrain } = require('../utils/mlTrigger');
 const { callMLService, syncMLPrediction } = require('../utils/mlScoring');
-const { mapScoringRow, queryTotalesCreditos, queryCreditosHistorico } = require('../utils/scoringUtils');
+const { mapScoringRow, queryTotalesCreditos, queryCreditosHistorico, calcularLimiteSugerido } = require('../utils/scoringUtils');
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -31,10 +31,9 @@ router.get('/:clienteId', async (req, res) => {
     }
 
     const creditosHistorico = await queryCreditosHistorico(pool, clienteId, idTendero);
-    const syncedRow = await syncMLPrediction(pool, clienteId, scoring.rows[0]);
-    const mapped = mapScoringRow(syncedRow, {
-      sinHistorialCrediticio: creditosHistorico === 0,
-    });
+    const sinHistorialCrediticio = creditosHistorico === 0;
+    const syncedRow = await syncMLPrediction(pool, clienteId, scoring.rows[0], idTendero, { sinHistorialCrediticio });
+    const mapped = mapScoringRow(syncedRow, { sinHistorialCrediticio });
 
     res.json({
       id_cliente: parseInt(clienteId),
@@ -85,28 +84,16 @@ router.post('/:clienteId/calcular', async (req, res) => {
       const nivelRiesgo = 'medio';
       const limiteSugerido = 50000;
 
+      // Regla de negocio fija para cliente nuevo (sin historial con este tendero):
+      // no se le pide predicción al RF porque no hay features reales que evaluar.
       await upsertScoring(clienteId, nivelRiesgo, ptsPuntualidad, ptsHistorial, ptsCumplimiento, ptsAntiguedad, limiteSugerido);
       triggerMLRetrain('scoring_nuevo').catch(() => {});
-
-      let rf = null;
-      try {
-        rf = await callMLService(clienteId);
-        await pool.query(`
-          UPDATE scoring
-          SET nivel_riesgo = $1, confianza = $2
-          WHERE id_scoring = (
-            SELECT id_scoring FROM scoring WHERE id_cliente = $3 ORDER BY fecha_calculo DESC LIMIT 1
-          )
-        `, [rf.nivel_riesgo, rf.confianza, clienteId]);
-      } catch (mlErr) {
-        console.error('Error guardando predicción ML (cliente nuevo):', mlErr.message);
-      }
 
       return res.json({
         message: 'Scoring calculado correctamente (cliente nuevo)',
         id_cliente: parseInt(clienteId),
         puntaje_total: puntajeTotal,
-        nivel_riesgo: rf ? rf.nivel_riesgo : nivelRiesgo,
+        nivel_riesgo: nivelRiesgo,
         limite_sugerido: limiteSugerido,
         desglose: {
           puntualidad: ptsPuntualidad,
@@ -114,7 +101,7 @@ router.post('/:clienteId/calcular', async (req, res) => {
           historial: ptsHistorial,
           antiguedad: ptsAntiguedad
         },
-        confianza: rf ? rf.confianza : null
+        confianza: null
       });
     }
 
@@ -219,48 +206,27 @@ router.post('/:clienteId/calcular', async (req, res) => {
     else if (puntajeTotal >= 50) nivelRiesgo = 'medio';
     else nivelRiesgo = 'alto';
 
-    // ── Límite sugerido ──
-    const ultimosCerrados = creditosCerrados
-      .sort((a, b) => new Date(b.fecha_credito) - new Date(a.fecha_credito))
-      .slice(0, 3);
-
-    let base = 0;
-    if (ultimosCerrados.length > 0) {
-      const sumaMontos = ultimosCerrados.reduce((sum, c) => sum + parseFloat(c.monto_total), 0);
-      base = sumaMontos / ultimosCerrados.length;
-    }
-
-    let factor;
-    if (nivelRiesgo === 'bajo') factor = 1.5;
-    else if (nivelRiesgo === 'medio') factor = 1.0;
-    else factor = 0.5;
-
-    const saldoPendienteActual = creditos.rows
-      .filter(c => c.estado !== 'pagado')
-      .reduce((sum, c) => sum + parseFloat(c.saldo_pendiente), 0);
-
-    let limiteSugerido = Math.max(0, Math.round(base * factor - saldoPendienteActual));
-    limiteSugerido = Math.min(limiteSugerido, 300000);
-
-    if (limiteSugerido === 0 && ultimosCerrados.length === 0) {
-      limiteSugerido = 50000;
-    }
+    // ── Límite sugerido (calculado con el nivel de riesgo por reglas, provisional) ──
+    let limiteSugerido = await calcularLimiteSugerido(pool, clienteId, idTendero, nivelRiesgo);
 
     // Guardar scoring en BD (sin puntaje; se calcula on-the-fly)
     await upsertScoring(clienteId, nivelRiesgo, ptsPuntualidad, ptsHistorial, ptsCumplimiento, ptsAntiguedad, limiteSugerido);
     triggerMLRetrain('scoring_nuevo').catch(() => {});
 
-    // Obtener predicción ML y sobreescribir nivel_riesgo + confianza
+    // Obtener predicción ML y sobreescribir nivel_riesgo + confianza + límite
+    // (el límite se recalcula con el nivel_riesgo del RF para que nunca quede
+    // desincronizado del nivel_riesgo persistido)
     let rf = null;
     try {
       rf = await callMLService(clienteId);
+      limiteSugerido = await calcularLimiteSugerido(pool, clienteId, idTendero, rf.nivel_riesgo);
       await pool.query(`
         UPDATE scoring
-        SET nivel_riesgo = $1, confianza = $2
+        SET nivel_riesgo = $1, confianza = $2, limite_sugerido = $3
         WHERE id_scoring = (
-          SELECT id_scoring FROM scoring WHERE id_cliente = $3 ORDER BY fecha_calculo DESC LIMIT 1
+          SELECT id_scoring FROM scoring WHERE id_cliente = $4 ORDER BY fecha_calculo DESC LIMIT 1
         )
-      `, [rf.nivel_riesgo, rf.confianza, clienteId]);
+      `, [rf.nivel_riesgo, rf.confianza, limiteSugerido, clienteId]);
     } catch (mlErr) {
       console.error('Error guardando predicción ML en scoring:', mlErr.message);
     }
@@ -353,7 +319,7 @@ router.get('/:clienteId/recomendacion', async (req, res) => {
       });
     }
 
-    const s = await syncMLPrediction(pool, clienteId, scoring.rows[0]);
+    const s = await syncMLPrediction(pool, clienteId, scoring.rows[0], idTendero, { sinHistorialCrediticio: sinCreditoTienda });
 
     const mapped = mapScoringRow(s, { sinHistorialCrediticio: sinCreditoTienda });
     const totales = await queryTotalesCreditos(pool, clienteId, idTendero);

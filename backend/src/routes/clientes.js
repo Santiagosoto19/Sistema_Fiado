@@ -161,8 +161,9 @@ router.get('/me', async (req, res) => {
     `, [idCliente]);
 
     const creditosHistorico = await queryCreditosHistorico(pool, idCliente, idTendero);
+    const sinHistorialCrediticio = creditosHistorico === 0;
     const syncedScoring = scoring.rows[0]
-      ? await syncMLPrediction(pool, idCliente, scoring.rows[0])
+      ? await syncMLPrediction(pool, idCliente, scoring.rows[0], idTendero, { sinHistorialCrediticio })
       : null;
 
     const tiendaResult = await pool.query(`
@@ -189,7 +190,7 @@ router.get('/me', async (req, res) => {
         direccion: tienda.direccion
       } : null,
       scoring: syncedScoring
-        ? mapScoringRow(syncedScoring, { sinHistorialCrediticio: creditosHistorico === 0 })
+        ? mapScoringRow(syncedScoring, { sinHistorialCrediticio })
         : null,
       totales: {
         total_deuda: parseFloat(totales.rows[0].total_deuda) || 0,
