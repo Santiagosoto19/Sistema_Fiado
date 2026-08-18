@@ -5,6 +5,167 @@ const authMiddleware = require('../middleware/auth');
 const router = express.Router();
 router.use(authMiddleware);
 
+const round1 = (n) => Math.round(n * 10) / 10;
+const round2 = (n) => Math.round(n * 100) / 100;
+
+const pctDistribucion = (monto, total) => (total > 0 ? round1((monto / total) * 100) : 0);
+
+const buildSemanasCompletas = (pagosRows, esperadoRows) => {
+  const semanas = [1, 2, 3, 4].map((semana) => ({
+    semana,
+    pagos: 0,
+    esperado: 0,
+  }));
+
+  pagosRows.forEach((row) => {
+    const idx = Number(row.semana) - 1;
+    if (idx >= 0 && idx < 4) semanas[idx].pagos = round2(parseFloat(row.pagos) || 0);
+  });
+
+  esperadoRows.forEach((row) => {
+    const idx = Number(row.semana) - 1;
+    if (idx >= 0 && idx < 4) semanas[idx].esperado = round2(parseFloat(row.esperado) || 0);
+  });
+
+  return semanas;
+};
+
+const verificarClienteTendero = async (idTendero, idCliente) => {
+  const result = await pool.query(`
+    SELECT c.id_cliente, c.nombre_completo
+    FROM clientes c
+    JOIN tendero_cliente tc ON c.id_cliente = tc.id_cliente
+    WHERE tc.id_tendero = $1 AND tc.id_cliente = $2 AND tc.estado = 'activo'
+  `, [idTendero, idCliente]);
+
+  return result.rows[0] || null;
+};
+
+// GET /api/analitica/cliente/:clienteId?anio=2026
+router.get('/cliente/:clienteId', async (req, res) => {
+  try {
+    const { clienteId } = req.params;
+    const idTendero = req.user.id_tendero;
+    const anioNum = parseInt(req.query.anio, 10) || new Date().getFullYear();
+
+    if (!idTendero) {
+      return res.status(403).json({ error: 'Acceso restringido a tenderos' });
+    }
+
+    const cliente = await verificarClienteTendero(idTendero, clienteId);
+    if (!cliente) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+
+    const mesChart = anioNum === new Date().getFullYear()
+      ? new Date().getMonth() + 1
+      : 3;
+
+    const [recuperadoRes, moraRes, pagosSemRes, esperadoSemRes, distRes] = await Promise.all([
+      pool.query(`
+        SELECT COALESCE(SUM(a.monto), 0) AS total
+        FROM abonos a
+        JOIN creditos c ON a.id_credito = c.id_credito
+        WHERE a.id_cliente = $1 AND c.id_tendero = $2
+          AND EXTRACT(YEAR FROM a.fecha_abono) = $3
+      `, [clienteId, idTendero, anioNum]),
+
+      pool.query(`
+        SELECT
+          COALESCE(SUM(CASE WHEN estado = 'vencido' THEN saldo_pendiente ELSE 0 END), 0) AS saldo_mora,
+          COALESCE(SUM(saldo_pendiente), 0) AS total_saldo
+        FROM creditos
+        WHERE id_cliente = $1 AND id_tendero = $2 AND estado != 'pagado'
+      `, [clienteId, idTendero]),
+
+      pool.query(`
+        SELECT
+          CASE
+            WHEN EXTRACT(DAY FROM a.fecha_abono) <= 7 THEN 1
+            WHEN EXTRACT(DAY FROM a.fecha_abono) <= 14 THEN 2
+            WHEN EXTRACT(DAY FROM a.fecha_abono) <= 21 THEN 3
+            ELSE 4
+          END AS semana,
+          COALESCE(SUM(a.monto), 0) AS pagos
+        FROM abonos a
+        JOIN creditos c ON a.id_credito = c.id_credito
+        WHERE a.id_cliente = $1 AND c.id_tendero = $2
+          AND EXTRACT(YEAR FROM a.fecha_abono) = $3
+          AND EXTRACT(MONTH FROM a.fecha_abono) = $4
+        GROUP BY semana
+        ORDER BY semana
+      `, [clienteId, idTendero, anioNum, mesChart]),
+
+      pool.query(`
+        SELECT
+          CASE
+            WHEN EXTRACT(DAY FROM fecha_limite_pago) <= 7 THEN 1
+            WHEN EXTRACT(DAY FROM fecha_limite_pago) <= 14 THEN 2
+            WHEN EXTRACT(DAY FROM fecha_limite_pago) <= 21 THEN 3
+            ELSE 4
+          END AS semana,
+          COALESCE(SUM(saldo_pendiente), 0) AS esperado
+        FROM creditos
+        WHERE id_cliente = $1 AND id_tendero = $2
+          AND estado != 'pagado'
+          AND EXTRACT(YEAR FROM fecha_limite_pago) = $3
+          AND EXTRACT(MONTH FROM fecha_limite_pago) = $4
+        GROUP BY semana
+        ORDER BY semana
+      `, [clienteId, idTendero, anioNum, mesChart]),
+
+      pool.query(`
+        SELECT
+          COALESCE(SUM(CASE
+            WHEN fecha_limite_pago >= CURRENT_DATE THEN saldo_pendiente
+            ELSE 0
+          END), 0) AS al_dia,
+          COALESCE(SUM(CASE
+            WHEN CURRENT_DATE - fecha_limite_pago BETWEEN 1 AND 7 THEN saldo_pendiente
+            ELSE 0
+          END), 0) AS mora_1_7,
+          COALESCE(SUM(CASE
+            WHEN CURRENT_DATE - fecha_limite_pago > 7 THEN saldo_pendiente
+            ELSE 0
+          END), 0) AS mora_mas_7
+        FROM creditos
+        WHERE id_cliente = $1 AND id_tendero = $2
+          AND estado != 'pagado' AND saldo_pendiente > 0
+      `, [clienteId, idTendero]),
+    ]);
+
+    const recuperado = round2(parseFloat(recuperadoRes.rows[0].total) || 0);
+    const saldoMora = parseFloat(moraRes.rows[0].saldo_mora) || 0;
+    const totalSaldo = parseFloat(moraRes.rows[0].total_saldo) || 0;
+    const moraPorcentaje = totalSaldo > 0 ? round1((saldoMora / totalSaldo) * 100) : 0;
+
+    const alDia = round2(parseFloat(distRes.rows[0].al_dia) || 0);
+    const mora17 = round2(parseFloat(distRes.rows[0].mora_1_7) || 0);
+    const moraMas7 = round2(parseFloat(distRes.rows[0].mora_mas_7) || 0);
+    const totalDist = alDia + mora17 + moraMas7;
+
+    res.json({
+      cliente: {
+        id: String(cliente.id_cliente),
+        nombre: cliente.nombre_completo,
+      },
+      anio: anioNum,
+      mes_chart: mesChart,
+      recuperado,
+      mora_porcentaje: moraPorcentaje,
+      pagos_semanales: buildSemanasCompletas(pagosSemRes.rows, esperadoSemRes.rows),
+      distribucion: {
+        al_dia: { pct: pctDistribucion(alDia, totalDist), monto: alDia },
+        mora_1_7: { pct: pctDistribucion(mora17, totalDist), monto: mora17 },
+        mora_mas_7: { pct: pctDistribucion(moraMas7, totalDist), monto: moraMas7 },
+      },
+    });
+  } catch (err) {
+    console.error('Error en analitica cliente:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // GET /api/analitica/indicadores
 router.get('/indicadores', async (req, res) => {
   try {
