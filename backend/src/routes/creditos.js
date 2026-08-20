@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../config/database');
 const authMiddleware = require('../middleware/auth');
+const { validateBody, validateQuery, validateParams, rules } = require('../middlewares/validateBody');
 const { triggerMLRetrain } = require('../utils/mlTrigger');
 const { todayLocalKey } = require('../utils/dateUtils');
 const creditsController = require('../modules/creditos/credits.controller');
@@ -9,7 +10,10 @@ const router = express.Router();
 router.use(authMiddleware);
 
 // GET /api/creditos
-router.get('/', async (req, res) => {
+router.get('/', validateQuery([
+  rules.positiveInt('clienteId'),
+  rules.oneOf('estado', ['vigente', 'pagado', 'vencido']),
+]), async (req, res) => {
   try {
     const { clienteId, estado } = req.query;
     const idTendero = req.user.id_tendero;
@@ -162,14 +166,18 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/creditos
-router.post('/', async (req, res) => {
+router.post('/', validateBody([
+  rules.required('clienteId'),
+  rules.positiveInt('clienteId'),
+  rules.required('montoTotal'),
+  rules.positiveNumber('montoTotal'),
+  rules.required('fechaLimitePago'),
+  rules.isoDate('fechaLimitePago'),
+  rules.string('descripcion', { max: 500 }),
+]), async (req, res) => {
   try {
     const { clienteId, montoTotal, descripcion, fechaLimitePago } = req.body;
     const idTendero = req.user.id_tendero;
-
-    if (!clienteId || !montoTotal || !fechaLimitePago) {
-      return res.status(400).json({ error: 'clienteId, montoTotal y fechaLimitePago son requeridos' });
-    }
 
     // 1. Verificar que el cliente esté vinculado a la cartera de ESTE tendero
     const clienteVinculado = await pool.query(
@@ -201,7 +209,7 @@ router.post('/', async (req, res) => {
 });
 
 // PATCH /api/creditos/:id
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', validateParams([rules.paramPositiveInt('id')]), async (req, res) => {
   try {
     const { id } = req.params;
     const { estado } = req.body;
@@ -234,7 +242,12 @@ router.patch('/:id', async (req, res) => {
 // NOTA: GET /cliente/:clienteId fue movido ANTES de GET /:id (línea ~58) para evitar conflicto de rutas Express.
 
 // POST /api/creditos/:creditoId/abonos
-router.post('/:creditoId/abonos', creditsController.registrarAbono);
+router.post('/:creditoId/abonos', validateParams([rules.paramPositiveInt('creditoId')]), validateBody([
+  rules.required('monto'),
+  rules.positiveNumber('monto'),
+  rules.required('fechaAbono'),
+  rules.isoDate('fechaAbono'),
+]), creditsController.registrarAbono);
 
 // GET /api/creditos/:creditoId/abonos
 router.get('/:creditoId/abonos', async (req, res) => {

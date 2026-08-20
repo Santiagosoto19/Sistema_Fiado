@@ -79,7 +79,7 @@ const server = app.listen(PORT, () => {
   console.log(`  Abonos: /api/abonos/:id`);
   console.log(`  Scoring: /api/scoring/:id, /api/scoring/:id/calcular, /api/scoring/:id/recomendacion`);
   console.log(`  Alertas: /api/alertas, /api/alertas/:id/leer`);
-  console.log(`  Analítica: /api/analitica/indicadores, /api/analitica/pagos-diarios, /api/analitica/prediccion-flujo`);
+  console.log(`  Analítica: /api/analitica/cliente/:id, /api/analitica/indicadores, /api/analitica/pagos-diarios, /api/analitica/prediccion-flujo`);
   console.log(`  Reportes: /api/reportes, /api/reportes/export/pdf`);
   console.log(`  Pagos: /api/pagos`);
   console.log(`  Asistente IA: POST /api/asistente/chat`);
