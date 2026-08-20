@@ -1,8 +1,32 @@
+# Dependencias
 node_modules/
 backend/node_modules/
-backend/deploy/
 mobile/node_modules/
+
+# Entornos virtuales de Python
+venv/
+.venv/
+env/
+
+# Cache de Python
+__pycache__/
+*.py[cod]
+
+# Variables de entorno
 .env
+.env.local
+*.env
+
+# Builds
+backend/deploy/
 .expo/
 dist/
 build/
+
+# Herramientas de IA
+CLAUDE.md
+.claude/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

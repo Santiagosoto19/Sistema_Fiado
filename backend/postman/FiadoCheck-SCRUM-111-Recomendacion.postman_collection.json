@@ -1,0 +1,295 @@
+{
+  "info": {
+    "name": "FiadoCheck — SCRUM-111 Recomendación IA (REC-01 a REC-07)",
+    "description": "Colección ejecutable del bloque §4.5 del plan de pruebas (responsable: Eliel).\nEndpoint: GET /api/scoring/:clienteId/recomendacion\n\nCONTRATO REAL — CORRECCIÓN v3\nEste endpoint señala las condiciones anómalas con el campo 'estado' dentro de una\nrespuesta HTTP 200, NO con códigos de error. El criterio de éxito de REC-01, REC-02\ny REC-03 es el valor de 'estado', no el status HTTP. No reportar como fallo un 200.\n\nDATOS VERIFICADOS EN BASE DE DATOS\n  Tendero 1 (carlos.mendez@fiado.com / FiadoTest2026)\n    cliente 2   -> nivel bajo,  3 créditos  -> REC-04 aprobar\n    cliente 1   -> nivel medio, 3 créditos  -> REC-05 con_precaucion\n    cliente 59  -> con vínculo, 0 créditos  -> REC-03 sin_credito_tienda\n    cliente 6   -> existe, NO vinculado al 1 -> REC-02 cliente_sin_vinculo\n    999999999   -> no existe                 -> REC-01 cliente_no_existe\n\n  Tendero 3 (pedro.garcia@fiado.com / FiadoTest2026)\n    cliente 5   -> nivel alto,  3 créditos  -> REC-06 rechazar\n\nPOR QUÉ DOS TENDEROS\nNingún tendero de la base tiene clientes con crédito en los tres niveles a la vez.\nEl tendero 1 cubre bajo y medio; el único par (tendero, cliente) con nivel alto Y\ncréditos está bajo el tendero 3. Por eso REC-06 hace su propio login.\n\nSi la petición 08 falla con 401, es porque pedro.garcia@fiado.com aún no tiene\ncontraseña conocida. El resto de la colección funciona igual.\n\nORDEN: ejecutar después de SCRUM-110, porque la recomendación exige que el scoring\nya exista. Si algún caso devuelve 404 'No existe scoring', calcula primero con\nPOST /api/scoring/:clienteId/calcular.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "tenderoEmail", "value": "carlos.mendez@fiado.com" },
+    { "key": "tenderoPassword", "value": "FiadoTest2026" },
+    { "key": "tendero3Email", "value": "pedro.garcia@fiado.com" },
+    { "key": "tendero3Password", "value": "FiadoTest2026" },
+    { "key": "clienteBajo", "value": "2" },
+    { "key": "clienteMedio", "value": "1" },
+    { "key": "clienteAlto", "value": "5" },
+    { "key": "clienteSinCreditos", "value": "59" },
+    { "key": "clienteSinVinculo", "value": "6" },
+    { "key": "clienteInexistente", "value": "999999999" },
+    { "key": "tokenTendero", "value": "" },
+    { "key": "tokenTendero3", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "01 — Setup: login tendero 1",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Setup — login correcto', function () { pm.response.to.have.status(200); });",
+              "const b = pm.response.json();",
+              "pm.test('Setup — el token lleva id_tendero', function () { pm.expect(b.tendero).to.not.be.null; });",
+              "if (b.token) { pm.collectionVariables.set('tokenTendero', b.token); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{tenderoEmail}}\",\n  \"password\": \"{{tenderoPassword}}\"\n}" },
+        "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+      }
+    },
+    {
+      "name": "02 — REC-01: cliente inexistente → estado cliente_no_existe",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('REC-01 — CONTRATO REAL: responde HTTP 200, no 404', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "const b = pm.response.json();",
+              "pm.test('REC-01 — estado = cliente_no_existe', function () {",
+              "    pm.expect(b.estado).to.eql('cliente_no_existe');",
+              "});",
+              "pm.test('REC-01 — el mensaje indica registrarlo primero', function () {",
+              "    pm.expect(b.mensaje.toLowerCase()).to.include('registr');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{tokenTendero}}" }],
+        "url": { "raw": "{{baseUrl}}/scoring/{{clienteInexistente}}/recomendacion", "host": ["{{baseUrl}}"], "path": ["scoring", "{{clienteInexistente}}", "recomendacion"] }
+      }
+    },
+    {
+      "name": "03 — REC-02: cliente sin vínculo → estado cliente_sin_vinculo",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('REC-02 — CONTRATO REAL: responde HTTP 200, no 403', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "const b = pm.response.json();",
+              "pm.test('REC-02 — estado = cliente_sin_vinculo', function () {",
+              "    pm.expect(b.estado).to.eql('cliente_sin_vinculo');",
+              "});",
+              "pm.test('REC-02 — devuelve nombre_completo del cliente', function () {",
+              "    pm.expect(b.nombre_completo).to.be.a('string').and.not.empty;",
+              "});",
+              "pm.test('REC-02 — el mensaje indica vincularlo', function () {",
+              "    pm.expect(b.mensaje.toLowerCase()).to.include('vinc');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{tokenTendero}}" }],
+        "url": { "raw": "{{baseUrl}}/scoring/{{clienteSinVinculo}}/recomendacion", "host": ["{{baseUrl}}"], "path": ["scoring", "{{clienteSinVinculo}}", "recomendacion"] }
+      }
+    },
+    {
+      "name": "04 — REC-03: vinculado sin créditos → sin_credito_tienda",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const b = pm.response.json();",
+              "",
+              "// El plan admite DOS rutas válidas para este caso.",
+              "if (pm.response.code === 200) {",
+              "    pm.test('REC-03 — ruta A: 200 con estado sin_credito_tienda', function () {",
+              "        pm.expect(b.estado).to.eql('sin_credito_tienda');",
+              "    });",
+              "    pm.test('REC-03 — ruta A: recomendacion con_precaucion', function () {",
+              "        pm.expect(b.recomendacion).to.eql('con_precaucion');",
+              "    });",
+              "    pm.test('REC-03 — ruta A: ofrece crear el primer crédito', function () {",
+              "        pm.expect(b.mensaje.toLowerCase()).to.include('crédito');",
+              "    });",
+              "    console.log('REC-03 — obtenida la ruta A (ya existía fila en scoring).');",
+              "} else {",
+              "    pm.test('REC-03 — ruta B: 404 con estado sin_credito_tienda', function () {",
+              "        pm.response.to.have.status(404);",
+              "        pm.expect(b.estado).to.eql('sin_credito_tienda');",
+              "        pm.expect(b.error).to.be.a('string');",
+              "    });",
+              "    console.log('REC-03 — obtenida la ruta B (no había fila en scoring).');",
+              "}",
+              "console.log('Registrar en la evidencia cuál ruta se obtuvo y con qué estado de datos.');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{tokenTendero}}" }],
+        "url": { "raw": "{{baseUrl}}/scoring/{{clienteSinCreditos}}/recomendacion", "host": ["{{baseUrl}}"], "path": ["scoring", "{{clienteSinCreditos}}", "recomendacion"] }
+      }
+    },
+    {
+      "name": "05 — REC-04: nivel bajo → aprobar",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('REC-04 — responde 200', function () { pm.response.to.have.status(200); });",
+              "const b = pm.response.json();",
+              "pm.test('REC-04 — estado con_historial', function () {",
+              "    pm.expect(b.estado).to.eql('con_historial');",
+              "});",
+              "pm.test('REC-04 — nivel_riesgo bajo', function () {",
+              "    pm.expect(b.nivel_riesgo).to.eql('bajo');",
+              "});",
+              "pm.test('REC-04 — recomendacion = aprobar', function () {",
+              "    pm.expect(b.recomendacion).to.eql('aprobar');",
+              "});",
+              "console.log('REC-04 — puntaje:', b.puntaje, '| confianza:', b.confianza, '| límite:', b.limite_sugerido);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{tokenTendero}}" }],
+        "url": { "raw": "{{baseUrl}}/scoring/{{clienteBajo}}/recomendacion", "host": ["{{baseUrl}}"], "path": ["scoring", "{{clienteBajo}}", "recomendacion"] }
+      }
+    },
+    {
+      "name": "06 — REC-05: nivel medio → con_precaucion",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('REC-05 — responde 200', function () { pm.response.to.have.status(200); });",
+              "const b = pm.response.json();",
+              "pm.test('REC-05 — nivel_riesgo medio', function () {",
+              "    pm.expect(b.nivel_riesgo).to.eql('medio');",
+              "});",
+              "pm.test('REC-05 — recomendacion = con_precaucion', function () {",
+              "    pm.expect(b.recomendacion).to.eql('con_precaucion');",
+              "});",
+              "console.log('REC-05 — puntaje:', b.puntaje, '| confianza:', b.confianza, '| límite:', b.limite_sugerido);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{tokenTendero}}" }],
+        "url": { "raw": "{{baseUrl}}/scoring/{{clienteMedio}}/recomendacion", "host": ["{{baseUrl}}"], "path": ["scoring", "{{clienteMedio}}", "recomendacion"] }
+      }
+    },
+    {
+      "name": "07 — REC-07: la respuesta trae totales y todos los campos",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('REC-07 — responde 200', function () { pm.response.to.have.status(200); });",
+              "const b = pm.response.json();",
+              "pm.test('REC-07 — incluye todos los campos del contrato', function () {",
+              "    ['puntaje', 'nivel_riesgo', 'limite_sugerido', 'confianza', 'fecha_calculo', 'desglose', 'totales', 'recomendacion', 'mensaje'].forEach(function (k) {",
+              "        pm.expect(b, 'falta ' + k).to.have.property(k);",
+              "    });",
+              "});",
+              "pm.test('REC-07 — totales incluye total_historico', function () {",
+              "    pm.expect(b.totales).to.have.property('total_historico');",
+              "});",
+              "pm.test('REC-07 — el desglose trae las 4 variables', function () {",
+              "    ['puntualidad', 'cumplimiento', 'historial', 'antiguedad'].forEach(function (k) {",
+              "        pm.expect(b.desglose, 'falta ' + k).to.have.property(k);",
+              "    });",
+              "});",
+              "console.log('REC-07 — totales:', JSON.stringify(b.totales));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{tokenTendero}}" }],
+        "url": { "raw": "{{baseUrl}}/scoring/{{clienteMedio}}/recomendacion", "host": ["{{baseUrl}}"], "path": ["scoring", "{{clienteMedio}}", "recomendacion"] }
+      }
+    },
+    {
+      "name": "08 — Setup: login tendero 3 (para REC-06)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 401) {",
+              "    console.log('AVISO: pedro.garcia@fiado.com no tiene contraseña conocida todavía.');",
+              "    console.log('REC-06 no se puede ejecutar hasta activar esa cuenta.');",
+              "}",
+              "pm.test('Setup — login del tendero 3 correcto', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "const b = pm.response.json();",
+              "if (b.token) { pm.collectionVariables.set('tokenTendero3', b.token); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{tendero3Email}}\",\n  \"password\": \"{{tendero3Password}}\"\n}" },
+        "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+      }
+    },
+    {
+      "name": "09 — REC-06: nivel alto → rechazar",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('REC-06 — responde 200', function () { pm.response.to.have.status(200); });",
+              "const b = pm.response.json();",
+              "pm.test('REC-06 — nivel_riesgo alto', function () {",
+              "    pm.expect(b.nivel_riesgo).to.eql('alto');",
+              "});",
+              "pm.test('REC-06 — recomendacion = rechazar', function () {",
+              "    pm.expect(b.recomendacion).to.eql('rechazar');",
+              "});",
+              "pm.test('REC-06 — el mensaje advierte del riesgo de mora', function () {",
+              "    pm.expect(b.mensaje.toLowerCase()).to.include('riesgo');",
+              "});",
+              "console.log('REC-06 — puntaje:', b.puntaje, '| confianza:', b.confianza, '| límite:', b.limite_sugerido);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{tokenTendero3}}" }],
+        "url": { "raw": "{{baseUrl}}/scoring/{{clienteAlto}}/recomendacion", "host": ["{{baseUrl}}"], "path": ["scoring", "{{clienteAlto}}", "recomendacion"] }
+      }
+    }
+  ]
+}

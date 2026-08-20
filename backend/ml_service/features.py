@@ -1,15 +1,29 @@
 import os
 import json
 import psycopg2
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 from psycopg2.extras import RealDictCursor
 
-# Cargar .env del directorio padre (backend/.env)
-env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
-load_dotenv(dotenv_path=env_path)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# 1) .env propio del microservicio (opcional): este archivo sí es suyo, se carga completo.
+_ML_ENV_PATH = os.path.join(BASE_DIR, '.env')
+if os.path.exists(_ML_ENV_PATH):
+    load_dotenv(dotenv_path=_ML_ENV_PATH)
+
+# 2) backend/.env (el del servidor Node): NO se carga completo a propósito.
+#    Ese archivo define PORT=3000 (puerto de Express) y secretos JWT que no le
+#    corresponden al ML; inyectarlos hacía que uvicorn arrancara en el 3000.
+#    Solo se toma DATABASE_URL, y solo si aún no está definida.
+if not os.environ.get("DATABASE_URL"):
+    _BACKEND_ENV_PATH = os.path.join(BASE_DIR, '..', '.env')
+    if os.path.exists(_BACKEND_ENV_PATH):
+        _db_url = dotenv_values(_BACKEND_ENV_PATH).get("DATABASE_URL")
+        if _db_url:
+            os.environ["DATABASE_URL"] = _db_url
 
 
-STATE_FILE = os.path.join(os.path.dirname(__file__), 'ml_state.json')
+STATE_FILE = os.path.join(BASE_DIR, 'ml_state.json')
 
 
 def get_connection():

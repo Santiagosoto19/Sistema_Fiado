@@ -1,0 +1,666 @@
+{
+  "info": {
+    "name": "FiadoCheck — SCRUM-52 Backend Auth (AUTH-01 a AUTH-20)",
+    "description": "Colección ejecutable del bloque §4.1 del plan de pruebas (responsable: Eliel).\n\nCubre AUTH-01, 02, 03, 04, 06, 07, 08, 12, 13, 14, 19 y 20.\nAUTH-09 y AUTH-10 (revocación de sesión) están en SCRUM-66 y requieren consulta SQL, por eso no viven aquí.\n\nCÓMO USARLA\n1. Selecciona el environment 'FiadoCheck — Local' (o el de Azure).\n2. Ejecuta con el Collection Runner en orden. Las peticiones están encadenadas.\n3. Cada pm.test lleva el ID del caso, así el resultado del Runner se traslada directo al checklist de Jira.\n\nRE-EJECUTABLE: la primera petición genera un runId por timestamp, así que el email y la cédula son distintos en cada corrida y no chocan con registros previos. La contraseña se revierte al final (AUTH-14d) para que la corrida quede idempotente.\n\nNOTA: cada corrida deja un tendero y un cliente de prueba en la base. Bórralos periódicamente con:\n  DELETE FROM usuario WHERE email LIKE '%@test.fiadocheck.com';",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "runId", "value": "" },
+    { "key": "tenderoEmail", "value": "" },
+    { "key": "tenderoCedula", "value": "" },
+    { "key": "tenderoPassword", "value": "Fiado2026Test" },
+    { "key": "tenderoPasswordNueva", "value": "Fiado2026Nueva9" },
+    { "key": "clienteEmail", "value": "" },
+    { "key": "clienteCedula", "value": "" },
+    { "key": "clientePassword", "value": "Cliente2026Test" },
+    { "key": "tokenTendero", "value": "" },
+    { "key": "tokenCliente", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "00 — Health check (prerequisito)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Prerequisito — GET /health responde 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Prerequisito — status ok', function () {",
+              "    pm.expect(pm.response.json().status).to.eql('ok');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{hostUrl}}/health", "host": ["{{hostUrl}}"], "path": ["health"] }
+      }
+    },
+    {
+      "name": "AUTH-01a — registerTendero campos completos → 201",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Identificador único por corrida: evita choques de email y cédula.",
+              "const ts = Date.now().toString().slice(-9);",
+              "pm.collectionVariables.set('runId', ts);",
+              "pm.collectionVariables.set('tenderoEmail', 'tendero.' + ts + '@test.fiadocheck.com');",
+              "pm.collectionVariables.set('tenderoCedula', ts);",
+              "pm.collectionVariables.set('clienteEmail', 'cliente.' + ts + '@test.fiadocheck.com');",
+              "pm.collectionVariables.set('clienteCedula', (Number(ts) + 1).toString());"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-01 — registro de tendero con campos completos devuelve 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "pm.test('AUTH-01 — mensaje de confirmación', function () {",
+              "    pm.expect(pm.response.json().message).to.include('Tendero registrado');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nombre_completo\": \"Tendero Prueba {{runId}}\",\n  \"email\": \"{{tenderoEmail}}\",\n  \"telefono\": \"3001234567\",\n  \"cedula\": \"{{tenderoCedula}}\",\n  \"direccion\": \"Calle 10 # 20-30\",\n  \"num_camara_comercio\": \"CC-{{runId}}\",\n  \"password\": \"{{tenderoPassword}}\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/auth/registerTendero", "host": ["{{baseUrl}}"], "path": ["auth", "registerTendero"] }
+      }
+    },
+    {
+      "name": "AUTH-01b — login del tendero recién creado → 200",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-01 — el tendero registrado puede iniciar sesión', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "const body = pm.response.json();",
+              "pm.test('AUTH-01 — la respuesta trae token', function () {",
+              "    pm.expect(body.token).to.be.a('string').and.not.empty;",
+              "});",
+              "if (body.token) { pm.collectionVariables.set('tokenTendero', body.token); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{tenderoEmail}}\",\n  \"password\": \"{{tenderoPassword}}\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+      }
+    },
+    {
+      "name": "AUTH-02 — registerTendero sin campos obligatorios → 400",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-02 — registro incompleto devuelve 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "pm.test('AUTH-02 — el error enumera los campos faltantes', function () {",
+              "    pm.expect(pm.response.json().error).to.include('Campos requeridos');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"incompleto.{{runId}}@test.fiadocheck.com\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/auth/registerTendero", "host": ["{{baseUrl}}"], "path": ["auth", "registerTendero"] }
+      }
+    },
+    {
+      "name": "AUTH-03 — registerClientes → 201",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-03 — registro de cliente devuelve 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "pm.test('AUTH-03 — mensaje de confirmación', function () {",
+              "    pm.expect(pm.response.json().message).to.include('registrado correctamente');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nombre_completo\": \"Cliente Prueba {{runId}}\",\n  \"email\": \"{{clienteEmail}}\",\n  \"telefono\": \"3007654321\",\n  \"cedula\": \"{{clienteCedula}}\",\n  \"direccion\": \"Carrera 5 # 15-25\",\n  \"password\": \"{{clientePassword}}\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/auth/registerClientes", "host": ["{{baseUrl}}"], "path": ["auth", "registerClientes"] }
+      }
+    },
+    {
+      "name": "AUTH-04 — email duplicado → 400",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-04 — email ya registrado devuelve 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "pm.test('AUTH-04 — el error indica que el email ya existe', function () {",
+              "    pm.expect(pm.response.json().error).to.include('email ya está registrado');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nombre_completo\": \"Cliente Duplicado {{runId}}\",\n  \"email\": \"{{clienteEmail}}\",\n  \"telefono\": \"3007654321\",\n  \"cedula\": \"{{clienteCedula}}\",\n  \"direccion\": \"Carrera 5 # 15-25\",\n  \"password\": \"{{clientePassword}}\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/auth/registerClientes", "host": ["{{baseUrl}}"], "path": ["auth", "registerClientes"] }
+      }
+    },
+    {
+      "name": "AUTH-06 — login tendero → JWT con id_tendero",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const CryptoJS = require('crypto-js');",
+              "function decodeJwtPayload(token) {",
+              "    let p = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');",
+              "    while (p.length % 4) { p += '='; }",
+              "    return JSON.parse(CryptoJS.enc.Utf8.stringify(CryptoJS.enc.Base64.parse(p)));",
+              "}",
+              "",
+              "pm.test('AUTH-06 — login de tendero devuelve 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "const body = pm.response.json();",
+              "pm.test('AUTH-06 — la respuesta incluye el objeto tendero', function () {",
+              "    pm.expect(body.tendero).to.not.be.null;",
+              "    pm.expect(body.tendero).to.have.property('id_tendero');",
+              "    pm.expect(body.tendero).to.have.property('nombre_tienda');",
+              "});",
+              "pm.test('AUTH-06 — el JWT lleva id_tendero e id_rol = 1', function () {",
+              "    const payload = decodeJwtPayload(body.token);",
+              "    pm.expect(payload.id_tendero, 'id_tendero en el payload').to.not.be.null;",
+              "    pm.expect(Number(payload.id_rol)).to.eql(1);",
+              "});",
+              "if (body.token) { pm.collectionVariables.set('tokenTendero', body.token); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{tenderoEmail}}\",\n  \"password\": \"{{tenderoPassword}}\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+      }
+    },
+    {
+      "name": "AUTH-07 — login cliente → sin id_tendero",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const CryptoJS = require('crypto-js');",
+              "function decodeJwtPayload(token) {",
+              "    let p = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');",
+              "    while (p.length % 4) { p += '='; }",
+              "    return JSON.parse(CryptoJS.enc.Utf8.stringify(CryptoJS.enc.Base64.parse(p)));",
+              "}",
+              "",
+              "pm.test('AUTH-07 — login de cliente devuelve 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "const body = pm.response.json();",
+              "pm.test('AUTH-07 — tendero es null y cliente viene poblado', function () {",
+              "    pm.expect(body.tendero).to.be.null;",
+              "    pm.expect(body.cliente).to.not.be.null;",
+              "    pm.expect(body.cliente).to.have.property('id_cliente');",
+              "});",
+              "pm.test('AUTH-07 — el JWT NO lleva id_tendero', function () {",
+              "    const payload = decodeJwtPayload(body.token);",
+              "    pm.expect(payload.id_tendero, 'id_tendero en el payload').to.be.null;",
+              "});",
+              "if (body.token) { pm.collectionVariables.set('tokenCliente', body.token); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{clienteEmail}}\",\n  \"password\": \"{{clientePassword}}\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+      }
+    },
+    {
+      "name": "AUTH-08 — credenciales inválidas → 401",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-08 — contraseña incorrecta devuelve 401', function () {",
+              "    pm.response.to.have.status(401);",
+              "});",
+              "pm.test('AUTH-08 — mensaje genérico, sin revelar si el email existe', function () {",
+              "    pm.expect(pm.response.json().error).to.eql('Credenciales inválidas');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{tenderoEmail}}\",\n  \"password\": \"ContrasenaIncorrecta9\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+      }
+    },
+    {
+      "name": "AUTH-12 — GET /auth/profile → 200",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-12 — el perfil responde 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "const body = pm.response.json();",
+              "pm.test('AUTH-12 — trae datos de usuario', function () {",
+              "    pm.expect(body).to.have.property('id_usuario');",
+              "    pm.expect(body).to.have.property('email');",
+              "    pm.expect(body).to.have.property('id_rol');",
+              "});",
+              "pm.test('AUTH-12 — trae datos específicos del rol tendero', function () {",
+              "    pm.expect(body).to.have.property('id_tendero');",
+              "    pm.expect(body).to.have.property('nombre_tienda');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{tokenTendero}}" }],
+        "url": { "raw": "{{baseUrl}}/auth/profile", "host": ["{{baseUrl}}"], "path": ["auth", "profile"] }
+      }
+    },
+    {
+      "name": "AUTH-13a — PUT /auth/profile válido → 200",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-13 — actualización válida devuelve 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test('AUTH-13 — mensaje de confirmación', function () {",
+              "    pm.expect(pm.response.json().message).to.include('actualizado correctamente');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{tokenTendero}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nombre_tienda\": \"Tienda Actualizada {{runId}}\",\n  \"telefono\": \"3009998877\",\n  \"direccion\": \"Avenida 30 # 40-50\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/auth/profile", "host": ["{{baseUrl}}"], "path": ["auth", "profile"] }
+      }
+    },
+    {
+      "name": "AUTH-13b — PUT /auth/profile teléfono inválido → 400",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-13 — teléfono fuera de rango devuelve 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "pm.test('AUTH-13 — el error explica la regla del teléfono', function () {",
+              "    pm.expect(pm.response.json().error).to.include('teléfono');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{tokenTendero}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"telefono\": \"123\"\n}" },
+        "url": { "raw": "{{baseUrl}}/auth/profile", "host": ["{{baseUrl}}"], "path": ["auth", "profile"] }
+      }
+    },
+    {
+      "name": "AUTH-13c — PUT /auth/profile email inválido → 400",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-13 — email con formato inválido devuelve 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "pm.test('AUTH-13 — el error explica la regla del email', function () {",
+              "    pm.expect(pm.response.json().error).to.include('email');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{tokenTendero}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"email\": \"correo-sin-arroba\"\n}" },
+        "url": { "raw": "{{baseUrl}}/auth/profile", "host": ["{{baseUrl}}"], "path": ["auth", "profile"] }
+      }
+    },
+    {
+      "name": "AUTH-14a — change-password sin mayúscula ni número → 400",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-14 — contraseña débil devuelve 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "pm.test('AUTH-14 — el error explica la regla de complejidad', function () {",
+              "    pm.expect(pm.response.json().error).to.include('mayúscula');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{tokenTendero}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"currentPassword\": \"{{tenderoPassword}}\",\n  \"newPassword\": \"abcdefghij\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/auth/change-password", "host": ["{{baseUrl}}"], "path": ["auth", "change-password"] }
+      }
+    },
+    {
+      "name": "AUTH-14b — change-password con contraseña actual incorrecta → 401",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-14 — contraseña actual incorrecta devuelve 401', function () {",
+              "    pm.response.to.have.status(401);",
+              "});",
+              "pm.test('AUTH-14 — el error lo indica explícitamente', function () {",
+              "    pm.expect(pm.response.json().error).to.include('contraseña actual es incorrecta');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{tokenTendero}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"currentPassword\": \"NoEsLaActual9\",\n  \"newPassword\": \"{{tenderoPasswordNueva}}\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/auth/change-password", "host": ["{{baseUrl}}"], "path": ["auth", "change-password"] }
+      }
+    },
+    {
+      "name": "AUTH-14c — change-password válido → 200",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-14 — cambio de contraseña válido devuelve 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test('AUTH-14 — mensaje de confirmación', function () {",
+              "    pm.expect(pm.response.json().message).to.include('Contraseña actualizada');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{tokenTendero}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"currentPassword\": \"{{tenderoPassword}}\",\n  \"newPassword\": \"{{tenderoPasswordNueva}}\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/auth/change-password", "host": ["{{baseUrl}}"], "path": ["auth", "change-password"] }
+      }
+    },
+    {
+      "name": "AUTH-14d — login con la contraseña nueva → 200 (verifica el cambio)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-14 — la contraseña nueva permite iniciar sesión', function () {",
+              "    pm.response.to.have.status(200);",
+              "    pm.expect(pm.response.json().token).to.be.a('string').and.not.empty;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{tenderoEmail}}\",\n  \"password\": \"{{tenderoPasswordNueva}}\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+      }
+    },
+    {
+      "name": "AUTH-14e — revertir contraseña original → 200",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-14 — la contraseña se revierte (colección re-ejecutable)', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{tokenTendero}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"currentPassword\": \"{{tenderoPasswordNueva}}\",\n  \"newPassword\": \"{{tenderoPassword}}\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/auth/change-password", "host": ["{{baseUrl}}"], "path": ["auth", "change-password"] }
+      }
+    },
+    {
+      "name": "AUTH-19 — PUT /auth/push-token → 200",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-19 — registro de push token devuelve 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test('AUTH-19 — mensaje de confirmación', function () {",
+              "    pm.expect(pm.response.json().message).to.include('Push token actualizado');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{tokenTendero}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"pushToken\": \"ExponentPushToken[test-{{runId}}-v1]\"\n}" },
+        "url": { "raw": "{{baseUrl}}/auth/push-token", "host": ["{{baseUrl}}"], "path": ["auth", "push-token"] }
+      }
+    },
+    {
+      "name": "AUTH-19b — push-token sin body → 400",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-19 — sin pushToken devuelve 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "pm.test('AUTH-19 — el error indica el campo requerido', function () {",
+              "    pm.expect(pm.response.json().error).to.include('pushToken');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{tokenTendero}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": { "raw": "{{baseUrl}}/auth/push-token", "host": ["{{baseUrl}}"], "path": ["auth", "push-token"] }
+      }
+    },
+    {
+      "name": "AUTH-20 — re-registro de push token → 200",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-20 — re-registrar el push token sobrescribe sin error', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test('AUTH-20 — mensaje de confirmación', function () {",
+              "    pm.expect(pm.response.json().message).to.include('Push token actualizado');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{tokenTendero}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"pushToken\": \"ExponentPushToken[test-{{runId}}-v2]\"\n}" },
+        "url": { "raw": "{{baseUrl}}/auth/push-token", "host": ["{{baseUrl}}"], "path": ["auth", "push-token"] }
+      }
+    }
+  ]
+}

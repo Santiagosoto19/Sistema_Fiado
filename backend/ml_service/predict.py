@@ -133,5 +133,6 @@ def retrain(req: RetrainRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 8000))
+    # ML_PORT manda en local; PORT es el que inyecta Azure App Service.
+    port = int(os.environ.get("ML_PORT") or os.environ.get("PORT") or 8000)
     uvicorn.run(app, host="0.0.0.0", port=port)
