@@ -2,7 +2,7 @@ import { Tabs } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Banknote, Bot } from 'lucide-react-native';
+import { Banknote, Bot, BarChart2 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from 'expo-router';
 
@@ -87,7 +87,7 @@ export default function TabLayout() {
         },
       }}>
 
-      {/* Solo para Tenderos */}
+      {/* ── Solo para Tenderos ─────────────────────────────────────── */}
       <Tabs.Screen
         name="dashboard"
         options={{
@@ -112,6 +112,15 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <Banknote size={24} color={color} strokeWidth={2} />,
         }}
       />
+      {/* ── NUEVO: Reportes (SCRUM-46) ─────────────────────────────── */}
+      <Tabs.Screen
+        name="reportes"
+        options={{
+          title: 'Reportes',
+          href: isTendero ? undefined : null,
+          tabBarIcon: ({ color }) => <BarChart2 size={24} color={color} strokeWidth={2} />,
+        }}
+      />
       <Tabs.Screen
         name="Asistenteia"
         options={{
@@ -120,6 +129,8 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <Bot size={24} color={color} strokeWidth={2} />,
         }}
       />
+
+      {/* ── Solo para Clientes ────────────────────────────────────────── */}
       <Tabs.Screen
         name="vistaUsuario"
         options={{
@@ -128,8 +139,6 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <MaterialIcons size={26} name="home" color={color} />,
         }}
       />
-
-      
       <Tabs.Screen
         name="wallet"
         options={{
@@ -139,7 +148,7 @@ export default function TabLayout() {
         }}
       />
 
-    {/* Comunes */}
+      {/* ── Comunes ───────────────────────────────────────────────────── */}
       <Tabs.Screen
         name="profile"
         options={{
@@ -155,7 +164,7 @@ export default function TabLayout() {
         }}
       />
 
-      {/* Ocultamos pestañas técnicas que no queremos en el menú */}
+      {/* ── Pantallas técnicas ocultas del menú ───────────────────────── */}
       <Tabs.Screen name="transfer" options={{ href: null }} />
       <Tabs.Screen name="perfilCliente" options={{ href: null }} />
     </Tabs>

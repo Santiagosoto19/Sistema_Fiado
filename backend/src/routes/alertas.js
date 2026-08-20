@@ -1,12 +1,15 @@
 const express = require('express');
 const pool = require('../config/database');
 const authMiddleware = require('../middleware/auth');
+const { validateQuery, validateParams, rules } = require('../middlewares/validateBody');
 
 const router = express.Router();
 router.use(authMiddleware);
 
 // GET /api/alertas
-router.get('/', async (req, res) => {
+router.get('/', validateQuery([
+  rules.oneOf('tipo', ['critica', 'proxima', 'informativa']),
+]), async (req, res) => {
   try {
     const { tipo } = req.query;
     const idTendero = req.user.id_tendero;
@@ -51,7 +54,7 @@ router.get('/', async (req, res) => {
 });
 
 // PATCH /api/alertas/:id/leer
-router.patch('/:id/leer', async (req, res) => {
+router.patch('/:id/leer', validateParams([rules.paramPositiveInt('id')]), async (req, res) => {
   try {
     const { id } = req.params;
     const idTendero = req.user.id_tendero;

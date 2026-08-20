@@ -415,6 +415,12 @@ router.put('/:id', async (req, res) => {
       values.push(direccion);
     }
     if (estado) {
+      const estadosValidos = ['activo', 'sin_deuda', 'inactivo'];
+      if (!estadosValidos.includes(estado)) {
+        return res.status(400).json({
+          error: `Estado inválido. Valores válidos: ${estadosValidos.join(', ')}`,
+        });
+      }
       updates.push(`estado = $${paramIndex++}`);
       values.push(estado);
     }

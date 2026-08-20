@@ -1,6 +1,10 @@
 const express = require('express');
-const pool = require('../config/database');
 const authMiddleware = require('../middleware/auth');
+const { validateQuery, rules } = require('../middlewares/validateBody');
+const analyticsController = require('../modules/analiticas/analytics.controller');
+
+const PERIODOS = ['semana', 'mes', 'trimestre', 'aldia'];
+const validarPeriodoQuery = validateQuery([rules.oneOf('periodo', PERIODOS)]);
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -243,90 +247,9 @@ router.get('/indicadores', async (req, res) => {
 });
 
 // GET /api/analitica/pagos-diarios
-router.get('/pagos-diarios', async (req, res) => {
-  try {
-    const idTendero = req.user.id_tendero;
-
-    const hoy = new Date();
-    const primerDiaMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-    const fechaInicio = primerDiaMes.toISOString().split('T')[0];
-
-    const result = await pool.query(`
-      SELECT a.fecha_abono, COALESCE(SUM(a.monto), 0) as monto_dia
-      FROM abonos a
-      JOIN creditos c ON a.id_credito = c.id_credito
-      WHERE c.id_tendero = $1 AND a.fecha_abono >= $2
-      GROUP BY a.fecha_abono
-      ORDER BY a.fecha_abono ASC
-    `, [idTendero, fechaInicio]);
-
-    res.json(result.rows.map(r => ({
-      fecha: r.fecha_abono,
-      monto: parseFloat(r.monto_dia)
-    })));
-  } catch (err) {
-    console.error('Error en pagos-diarios:', err);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
+router.get('/pagos-diarios', analyticsController.getPagosDiarios);
 
 // GET /api/analitica/prediccion-flujo
-router.get('/prediccion-flujo', async (req, res) => {
-  try {
-    const idTendero = req.user.id_tendero;
-
-    // Calcular pagos esperados en los próximos 7 días
-    const prediccion = await pool.query(`
-      SELECT fecha_limite_pago, saldo_pendiente
-      FROM creditos
-      WHERE id_tendero = $1 AND estado = 'vigente'
-      AND fecha_limite_pago BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'
-      ORDER BY fecha_limite_pago ASC
-    `, [idTendero, idTendero]);
-
-    const hoy = new Date();
-    const diaSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
-
-    // Generar predicciones por día
-    const predicciones = [];
-    let montoTotal = 0;
-    let confianza = 70; // Base de confianza
-
-    for (let i = 0; i < 7; i++) {
-      const diaActual = new Date(hoy);
-      diaActual.setDate(hoy.getDate() + i);
-      const fechaStr = diaActual.toISOString().split('T')[0];
-
-      const pagosDelDia = prediccion.rows
-        .filter(p => p.fecha_limite_pago.toISOString().split('T')[0] === fechaStr)
-        .reduce((sum, p) => sum + parseFloat(p.saldo_pendiente), 0);
-
-      montoTotal += pagosDelDia;
-
-      predicciones.push({
-        fecha: fechaStr,
-        dia: diaSemana[diaActual.getDay()],
-        monto_esperado: Math.round(pagosDelDia * 100) / 100
-      });
-    }
-
-    // Ajustar confianza basado en histórico
-    if (predicciones.length > 0) {
-      confianza = 85;
-    }
-
-    res.json({
-      predicciones,
-      monto_total_esperado: Math.round(montoTotal * 100) / 100,
-      nivel_confianza: confianza,
-      mensaje: confianza >= 80
-        ? 'Alta confianza en la predicción basada en el historial de pagos.'
-        : 'Confianza moderada. Los datos históricos son limitados.'
-    });
-  } catch (err) {
-    console.error('Error en prediccion-flujo:', err);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
+router.get('/prediccion-flujo', analyticsController.getPrediccionFlujo);
 
 module.exports = router;
