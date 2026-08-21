@@ -1,4 +1,5 @@
 const express = require('express');
+const pool = require('../config/database');
 const authMiddleware = require('../middleware/auth');
 const { validateQuery, rules } = require('../middlewares/validateBody');
 const analyticsController = require('../modules/analiticas/analytics.controller');
