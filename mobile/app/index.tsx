@@ -1,6 +1,7 @@
 import { Redirect } from 'expo-router';
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { resolveClienteHomeRoute } from '@/hooks/Usetiendasasociadas';
 
 export default function Index() {
   const [target, setTarget] = useState<string | null>(null);
@@ -27,7 +28,17 @@ export default function Index() {
         isTendero = true;
       }
 
-      setTarget(isTendero ? '/(tabs)/dashboard' : '/(tabs)/vistaUsuario');
+      if (isTendero) {
+        setTarget('/(tabs)/dashboard');
+        return;
+      }
+
+      try {
+        const clienteRoute = await resolveClienteHomeRoute(token);
+        setTarget(clienteRoute);
+      } catch {
+        setTarget('/(tabs)/vistaUsuario');
+      }
     };
 
     checkLogin();

@@ -16,6 +16,7 @@ import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { CONFIG } from '@/config/config';
+import { clearTenderoSeleccionado } from '@/hooks/Usetiendasasociadas';
 import { COLORS } from '@/constants/colors';
 import { profileStyles as styles } from '@/constants/profile.styles';
 import { ChevronLeft, Bell, User, ShieldCheck, LogOut, Camera } from 'lucide-react-native';
@@ -211,6 +212,7 @@ export default function ProfileScreen() {
     } catch (e) {
       console.error('Logout API error', e);
     } finally {
+      await clearTenderoSeleccionado();
       await AsyncStorage.multiRemove(['token', 'usuario', 'tendero', 'lastActive']);
       router.replace('/(auth)/login');
     }

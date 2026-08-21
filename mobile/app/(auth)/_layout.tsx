@@ -7,7 +7,7 @@ export default function AuthLayout() {
       <Stack.Screen name="registerClientes" />
       <Stack.Screen name="home" />
       <Stack.Screen name="registerChoice" />
-
+      <Stack.Screen name="TiendasAsociadas" options={{ gestureEnabled: false }} />
     </Stack>
   );
 }

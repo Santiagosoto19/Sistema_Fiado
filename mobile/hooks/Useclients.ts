@@ -109,10 +109,6 @@ export const useClients = (token: string | null) => {
 
   const handleFiltro = (filtro: Filtro) => setFiltroActivo(filtro);
 
-  const handleNuevoCliente = () => {
-    // TODO: router.push('/clients/new');
-  };
-
   const handleClientePress = (id: string) => {
     router.push({
       pathname: '/(tabs)/perfilCliente',
@@ -128,7 +124,6 @@ export const useClients = (token: string | null) => {
     loading,
     total,
     handleFiltro,
-    handleNuevoCliente,
     handleClientePress,
     refetch: fetchClientes,
   };

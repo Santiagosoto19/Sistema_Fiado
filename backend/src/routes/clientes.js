@@ -132,6 +132,114 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/clientes/buscar-asociar?cedula= — busca cliente registrado no vinculado a la tienda
+router.get('/buscar-asociar', async (req, res) => {
+  try {
+    const cedula = String(req.query.cedula || '').trim();
+    const idTendero = req.user.id_tendero;
+
+    if (!idTendero) {
+      return res.status(403).json({ error: 'Acceso restringido a tenderos' });
+    }
+    if (!cedula) {
+      return res.status(400).json({ error: 'La cédula es requerida' });
+    }
+
+    const cliente = await pool.query(`
+      SELECT c.id_cliente, c.nombre_completo, c.telefono, c.direccion
+      FROM clientes c
+      WHERE c.id_cliente = $1
+    `, [cedula]);
+
+    if (cliente.rows.length === 0) {
+      return res.status(404).json({ error: 'No existe un cliente registrado con esa cédula' });
+    }
+
+    const relacion = await pool.query(`
+      SELECT estado FROM tendero_cliente
+      WHERE id_tendero = $1 AND id_cliente = $2
+    `, [idTendero, cedula]);
+
+    if (relacion.rows.length > 0 && relacion.rows[0].estado === 'activo') {
+      return res.status(409).json({ error: 'Este cliente ya está en tu cartera' });
+    }
+
+    res.json({
+      id_cliente: cliente.rows[0].id_cliente,
+      nombre_completo: cliente.rows[0].nombre_completo,
+      telefono: cliente.rows[0].telefono,
+      direccion: cliente.rows[0].direccion,
+      relacion_inactiva: relacion.rows.length > 0 && relacion.rows[0].estado !== 'activo',
+    });
+  } catch (err) {
+    console.error('Error en buscar-asociar:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// POST /api/clientes/asociar — vincula un cliente existente sin crear crédito
+router.post('/asociar', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const idTendero = req.user.id_tendero;
+    const clienteId = String(req.body.id_cliente || req.body.cedula || '').trim();
+
+    if (!idTendero) {
+      return res.status(403).json({ error: 'Acceso restringido a tenderos' });
+    }
+    if (!clienteId) {
+      return res.status(400).json({ error: 'La cédula del cliente es requerida' });
+    }
+
+    await client.query('BEGIN');
+
+    const existeCliente = await client.query(
+      'SELECT id_cliente, nombre_completo FROM clientes WHERE id_cliente = $1',
+      [clienteId],
+    );
+
+    if (existeCliente.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+
+    const relacion = await client.query(
+      'SELECT estado FROM tendero_cliente WHERE id_tendero = $1 AND id_cliente = $2',
+      [idTendero, clienteId],
+    );
+
+    if (relacion.rows.length > 0) {
+      if (relacion.rows[0].estado === 'activo') {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'Este cliente ya está en tu cartera' });
+      }
+      await client.query(
+        `UPDATE tendero_cliente SET estado = 'activo' WHERE id_tendero = $1 AND id_cliente = $2`,
+        [idTendero, clienteId],
+      );
+    } else {
+      await client.query(
+        `INSERT INTO tendero_cliente (id_tendero, id_cliente, estado) VALUES ($1, $2, 'activo')`,
+        [idTendero, clienteId],
+      );
+    }
+
+    await client.query('COMMIT');
+
+    res.status(201).json({
+      message: 'Cliente asociado a tu tienda correctamente',
+      id_cliente: clienteId,
+      nombre_completo: existeCliente.rows[0].nombre_completo,
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error al asociar cliente:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    client.release();
+  }
+});
+
 // GET /api/clientes/me/tiendas-deuda — tiendas con deuda activa (cliente logueado)
 router.get('/me/tiendas-deuda', async (req, res) => {
   try {
@@ -336,7 +444,10 @@ router.post('/', async (req, res) => {
   try {
     const { nombre, identificacion, telefono, direccion } = req.body;
     const idTendero = req.user.id_tendero;
-    const idUsuario = req.user.id_usuario;
+
+    if (!idTendero) {
+      return res.status(403).json({ error: 'Acceso restringido a tenderos' });
+    }
 
     if (!nombre || !identificacion || !telefono) {
       return res.status(400).json({ error: 'Nombre, identificación y teléfono son requeridos' });
@@ -344,35 +455,58 @@ router.post('/', async (req, res) => {
 
     await client.query('BEGIN');
 
-    // Verificar si ya existe un cliente con la misma identificación
+    const cedula = String(identificacion).trim();
+
     const existe = await client.query(
-      'SELECT id_cliente FROM clientes WHERE id_cliente = $1',
-      [identificacion]
+      'SELECT id_cliente, nombre_completo FROM clientes WHERE id_cliente = $1',
+      [cedula],
     );
 
     let clienteId;
+    let nombreCliente;
+
     if (existe.rows.length > 0) {
-      // Cliente ya existe, solo crear la relación
       clienteId = existe.rows[0].id_cliente;
+      nombreCliente = existe.rows[0].nombre_completo;
     } else {
-      // Crear nuevo cliente
       const result = await client.query(`
         INSERT INTO clientes (id_cliente, id_usuario, nombre_completo, telefono, direccion, estado)
-        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id_cliente
-      `, [identificacion, idUsuario, nombre, telefono, direccion, 'activo']);
+        VALUES ($1, NULL, $2, $3, $4, $5) RETURNING id_cliente, nombre_completo
+      `, [cedula, nombre.trim(), telefono.trim(), direccion?.trim() || null, 'activo']);
       clienteId = result.rows[0].id_cliente;
+      nombreCliente = result.rows[0].nombre_completo;
     }
 
-    // Crear relación tendero-cliente
-    await client.query(`
-      INSERT INTO tendero_cliente (id_tendero, id_cliente)
-      VALUES ($1, $2)
-      ON CONFLICT (id_tendero, id_cliente) DO NOTHING
-    `, [idTendero, clienteId]);
+    const relacion = await client.query(
+      'SELECT estado FROM tendero_cliente WHERE id_tendero = $1 AND id_cliente = $2',
+      [idTendero, clienteId],
+    );
+
+    if (relacion.rows.length > 0) {
+      if (relacion.rows[0].estado === 'activo') {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'Este cliente ya está en tu cartera' });
+      }
+      await client.query(
+        `UPDATE tendero_cliente SET estado = 'activo' WHERE id_tendero = $1 AND id_cliente = $2`,
+        [idTendero, clienteId],
+      );
+    } else {
+      await client.query(
+        `INSERT INTO tendero_cliente (id_tendero, id_cliente, estado) VALUES ($1, $2, 'activo')`,
+        [idTendero, clienteId],
+      );
+    }
 
     await client.query('COMMIT');
 
-    res.status(201).json({ message: 'Cliente creado correctamente', id_cliente: clienteId });
+    res.status(201).json({
+      message: existe.rows.length > 0
+        ? 'Cliente asociado a tu tienda correctamente'
+        : 'Cliente registrado y asociado correctamente',
+      id_cliente: clienteId,
+      nombre_completo: nombreCliente,
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Error al crear cliente:', err);

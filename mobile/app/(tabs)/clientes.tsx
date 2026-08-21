@@ -6,6 +6,10 @@ import {
   FlatList,
   StatusBar,
   ActivityIndicator,
+  Modal,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback, useState } from 'react';
@@ -13,8 +17,9 @@ import { Stack, useFocusEffect } from 'expo-router';
 import { clientStyles as styles } from '@/constants/Clients.styles';
 import { COLORS } from '@/constants/colors';
 import { useClients, Cliente } from '@/hooks/Useclients';
+import { useClienteAcciones } from '@/hooks/Useclienteacciones';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Search, Bell, BadgeCheck } from 'lucide-react-native';
+import { Search, Bell, BadgeCheck, UserPlus, Link2, X } from 'lucide-react-native';
 
 const FILTROS = [
   { key: 'todos',     label: 'Todos'     },
@@ -65,22 +70,37 @@ const ClienteItem = ({ item, onPress }: { item: Cliente; onPress: () => void }) 
 };
 
 export default function ClientsScreen() {
-  const [token, setToken]     = useState<string | null>(null);
-  const [tendero, setTendero] = useState<any>(null);
+  const [token, setToken] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
-      AsyncStorage.getItem('token').then(t => setToken(t));
-      AsyncStorage.getItem('tendero').then(t => {
-        if (t) setTendero(JSON.parse(t));
-      });
-    }, [])
+      AsyncStorage.getItem('token').then(setToken);
+    }, []),
   );
 
   const {
     clientes, busqueda, setBusqueda, filtroActivo,
-    loading, total, handleFiltro, handleNuevoCliente, handleClientePress,
+    loading, total, handleFiltro, handleClientePress, refetch,
   } = useClients(token);
+
+  const {
+    modalPaso,
+    abrirModal,
+    cerrarModal,
+    irARegistrar,
+    irAAsociar,
+    volverEleccion,
+    registerForm,
+    setRegisterForm,
+    cedulaBusqueda,
+    setCedulaBusqueda,
+    clienteEncontrado,
+    buscando,
+    guardando,
+    buscarParaAsociar,
+    asociarCliente,
+    registrarCliente,
+  } = useClienteAcciones(token, refetch);
 
   return (
     <>
@@ -152,12 +172,200 @@ export default function ClientsScreen() {
             )
           }
 
-          <TouchableOpacity style={styles.btnRegistrar} onPress={handleNuevoCliente}>
+          <TouchableOpacity style={styles.btnRegistrar} onPress={abrirModal} activeOpacity={0.85}>
             <Text style={styles.btnRegistrarText}>+ Registrar Nuevo Cliente</Text>
           </TouchableOpacity>
-
         </View>
       </SafeAreaView>
+
+      <Modal
+        visible={modalPaso !== 'cerrado'}
+        transparent
+        animationType="slide"
+        onRequestClose={cerrarModal}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={cerrarModal} />
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+
+            {modalPaso === 'eleccion' && (
+              <>
+                <Text style={styles.modalTitle}>Agregar cliente</Text>
+                <Text style={styles.modalSubtitle}>
+                  Elige si quieres registrar uno nuevo o vincular un cliente que ya existe en FiadoCheck.
+                </Text>
+
+                <TouchableOpacity style={styles.modalOption} onPress={irARegistrar} activeOpacity={0.8}>
+                  <View style={styles.modalOptionIcon}>
+                    <UserPlus size={22} color={COLORS.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.modalOptionTitle}>Registrar nuevo</Text>
+                    <Text style={styles.modalOptionDesc}>
+                      Crea un cliente en tu cartera con cédula, nombre y teléfono.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.modalOption} onPress={irAAsociar} activeOpacity={0.8}>
+                  <View style={styles.modalOptionIcon}>
+                    <Link2 size={22} color={COLORS.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.modalOptionTitle}>Asociar existente</Text>
+                    <Text style={styles.modalOptionDesc}>
+                      Vincula a tu tienda un cliente ya registrado, sin crear un crédito.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.modalBtnGhost} onPress={cerrarModal}>
+                  <Text style={styles.modalBtnGhostText}>Cancelar</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {modalPaso === 'registrar' && (
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <TouchableOpacity style={styles.modalBackBtn} onPress={volverEleccion}>
+                  <Text style={styles.modalBackText}>← Volver</Text>
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>Registrar nuevo cliente</Text>
+                <Text style={styles.modalSubtitle}>
+                  Se agregará a tu cartera. Podrás fiarle más adelante.
+                </Text>
+
+                <View style={styles.modalInputGroup}>
+                  <Text style={styles.modalLabel}>Nombre completo</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={registerForm.nombre}
+                    onChangeText={(t) => setRegisterForm({ ...registerForm, nombre: t })}
+                    placeholder="Ej. Juan Pérez"
+                    placeholderTextColor={COLORS.textMuted}
+                  />
+                </View>
+
+                <View style={styles.modalInputGroup}>
+                  <Text style={styles.modalLabel}>Cédula</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={registerForm.identificacion}
+                    onChangeText={(t) => setRegisterForm({ ...registerForm, identificacion: t.replace(/[^0-9]/g, '') })}
+                    placeholder="Número de cédula"
+                    placeholderTextColor={COLORS.textMuted}
+                    keyboardType="number-pad"
+                    maxLength={12}
+                  />
+                </View>
+
+                <View style={styles.modalInputGroup}>
+                  <Text style={styles.modalLabel}>Teléfono</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={registerForm.telefono}
+                    onChangeText={(t) => setRegisterForm({ ...registerForm, telefono: t.replace(/[^0-9]/g, '') })}
+                    placeholder="7 a 10 dígitos"
+                    placeholderTextColor={COLORS.textMuted}
+                    keyboardType="phone-pad"
+                    maxLength={10}
+                  />
+                </View>
+
+                <View style={styles.modalInputGroup}>
+                  <Text style={styles.modalLabel}>Dirección (opcional)</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={registerForm.direccion}
+                    onChangeText={(t) => setRegisterForm({ ...registerForm, direccion: t })}
+                    placeholder="Barrio, calle..."
+                    placeholderTextColor={COLORS.textMuted}
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.modalBtnPrimary, guardando && { opacity: 0.6 }]}
+                  onPress={registrarCliente}
+                  disabled={guardando}
+                >
+                  <Text style={styles.modalBtnPrimaryText}>
+                    {guardando ? 'Guardando...' : 'Registrar y agregar'}
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+
+            {modalPaso === 'asociar' && (
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <TouchableOpacity style={styles.modalBackBtn} onPress={volverEleccion}>
+                  <Text style={styles.modalBackText}>← Volver</Text>
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>Asociar cliente existente</Text>
+                <Text style={styles.modalSubtitle}>
+                  Busca por cédula un cliente registrado en la app para vincularlo a tu tienda.
+                </Text>
+
+                <View style={styles.modalSearchRow}>
+                  <TextInput
+                    style={styles.modalSearchInput}
+                    value={cedulaBusqueda}
+                    onChangeText={setCedulaBusqueda}
+                    placeholder="Número de cédula"
+                    placeholderTextColor={COLORS.textMuted}
+                    keyboardType="number-pad"
+                    maxLength={12}
+                    returnKeyType="search"
+                    onSubmitEditing={buscarParaAsociar}
+                  />
+                  <TouchableOpacity
+                    style={styles.modalSearchBtn}
+                    onPress={buscarParaAsociar}
+                    disabled={buscando}
+                  >
+                    {buscando
+                      ? <ActivityIndicator size="small" color={COLORS.white} />
+                      : <Search size={18} color={COLORS.white} />}
+                  </TouchableOpacity>
+                </View>
+
+                {clienteEncontrado && (
+                  <View style={styles.modalPreview}>
+                    <Text style={styles.modalPreviewName}>{clienteEncontrado.nombre_completo}</Text>
+                    <Text style={styles.modalPreviewMeta}>Cédula: {clienteEncontrado.id_cliente}</Text>
+                    {clienteEncontrado.telefono
+                      ? <Text style={styles.modalPreviewMeta}>Tel: {clienteEncontrado.telefono}</Text>
+                      : null}
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  style={[
+                    styles.modalBtnPrimary,
+                    (!clienteEncontrado || guardando) && { opacity: 0.5 },
+                  ]}
+                  onPress={asociarCliente}
+                  disabled={!clienteEncontrado || guardando}
+                >
+                  <Text style={styles.modalBtnPrimaryText}>
+                    {guardando ? 'Asociando...' : 'Asociar a mi tienda'}
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+
+            <TouchableOpacity
+              style={{ position: 'absolute', top: 16, right: 20, padding: 4 }}
+              onPress={cerrarModal}
+            >
+              <X size={20} color={COLORS.textMuted} />
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </>
   );
 }

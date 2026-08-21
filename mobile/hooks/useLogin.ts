@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CONFIG } from '@/config/config';
+import { resolveClienteHomeRoute, clearTenderoSeleccionado } from '@/hooks/Usetiendasasociadas';
 
 const API_URL = CONFIG.API_URL;
 const FETCH_TIMEOUT_MS = 15000;
@@ -84,21 +85,21 @@ export const useLogin = () => {
       await AsyncStorage.removeItem('lastActive');
 
       const isCliente = json.usuario.id_rol == 2;
-      const target = isCliente
-        ? '/(tabs)/vistaUsuario'
-        : json.tendero
-          ? '/(tabs)/dashboard'
-          : '/(tabs)/vistaUsuario';
+      let target = '/(tabs)/dashboard';
 
       if (isCliente) {
         await AsyncStorage.removeItem('tendero');
         if (json.cliente) {
           await AsyncStorage.setItem('usuario', JSON.stringify({ ...json.usuario, ...json.cliente }));
         }
+        await clearTenderoSeleccionado();
+        target = await resolveClienteHomeRoute(json.token);
       } else if (json.tendero) {
         await AsyncStorage.setItem('tendero', JSON.stringify(json.tendero));
+        target = '/(tabs)/dashboard';
       } else {
         await AsyncStorage.removeItem('tendero');
+        target = '/(tabs)/vistaUsuario';
       }
 
       setLoading(false);

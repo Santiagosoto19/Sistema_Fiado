@@ -79,6 +79,11 @@ export default function RootLayout() {
         }
 
         if (token && inAuthGroup) {
+          const isTiendasAsociadas = segments[1] === 'TiendasAsociadas';
+          if (isTiendasAsociadas) {
+            return;
+          }
+
           const [tenderoRaw, usuarioRaw] = await Promise.all([
             AsyncStorage.getItem('tendero'),
             AsyncStorage.getItem('usuario')

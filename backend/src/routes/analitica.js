@@ -45,12 +45,13 @@ const verificarClienteTendero = async (idTendero, idCliente) => {
   return result.rows[0] || null;
 };
 
-// GET /api/analitica/cliente/:clienteId?anio=2026
+// GET /api/analitica/cliente/:clienteId?anio=2026&mes=8
 router.get('/cliente/:clienteId', async (req, res) => {
   try {
     const { clienteId } = req.params;
     const idTendero = req.user.id_tendero;
     const anioNum = parseInt(req.query.anio, 10) || new Date().getFullYear();
+    const mesQuery = parseInt(req.query.mes, 10);
 
     if (!idTendero) {
       return res.status(403).json({ error: 'Acceso restringido a tenderos' });
@@ -61,9 +62,12 @@ router.get('/cliente/:clienteId', async (req, res) => {
       return res.status(404).json({ error: 'Cliente no encontrado' });
     }
 
-    const mesChart = anioNum === new Date().getFullYear()
-      ? new Date().getMonth() + 1
-      : 3;
+    const anioActual = new Date().getFullYear();
+    const mesActual = new Date().getMonth() + 1;
+    const mesDefault = anioNum === anioActual ? mesActual : 3;
+    const mesChart = Number.isFinite(mesQuery) && mesQuery >= 1 && mesQuery <= 12
+      ? mesQuery
+      : mesDefault;
 
     const [recuperadoRes, moraRes, pagosSemRes, esperadoSemRes, distRes] = await Promise.all([
       pool.query(`

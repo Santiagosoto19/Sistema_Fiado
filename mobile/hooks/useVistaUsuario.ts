@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Alert, Linking } from 'react-native';
 import { CONFIG } from '@/config/config';
+import { getTenderoSeleccionado } from '@/hooks/Usetiendasasociadas';
 import {
   formatNivelRiesgo,
   getRiesgoColor,
@@ -59,7 +60,10 @@ export const useVistaUsuario = (token: string | null) => {
     try {
       setLoading(true);
 
-      const meRes = await fetchWithTimeout(`${API_URL}/clientes/me`, {
+      const tenderoActivo = await getTenderoSeleccionado();
+      const tenderoQuery = tenderoActivo?.id ? `?id_tendero=${encodeURIComponent(tenderoActivo.id)}` : '';
+
+      const meRes = await fetchWithTimeout(`${API_URL}/clientes/me${tenderoQuery}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!meRes.ok) {
@@ -94,7 +98,7 @@ export const useVistaUsuario = (token: string | null) => {
       });
 
       try {
-        const historyRes = await fetchWithTimeout(`${API_URL}/clientes/me/historial`, {
+        const historyRes = await fetchWithTimeout(`${API_URL}/clientes/me/historial${tenderoQuery}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!historyRes.ok) {
