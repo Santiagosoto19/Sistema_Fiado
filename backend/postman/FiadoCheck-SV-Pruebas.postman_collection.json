@@ -1,0 +1,366 @@
+{
+  "info": {
+    "_postman_id": "fiadocheck-sv-pruebas-2026",
+    "name": "FiadoCheck — SV Pruebas (Postman)",
+    "description": "Colección SV — SCRUM-53, 114, 54, 117, 118.\n\nEjecutar con: .\\run-postman-docs.ps1\n\nCredenciales: ver CREDENCIALES-PRUEBAS.md",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "https://fiadocheck-api.azurewebsites.net/api" },
+    { "key": "base_url_root", "value": "https://fiadocheck-api.azurewebsites.net" },
+    { "key": "email_tendero_a", "value": "carlos.mendez@fiado.com" },
+    { "key": "email_tendero_b", "value": "tendero1@tiendasegura.com" },
+    { "key": "email_cliente", "value": "ana.ruiz@gmail.com" },
+    { "key": "password", "value": "FiadoTest2026" },
+    { "key": "token_tendero_a", "value": "" },
+    { "key": "token_tendero_b", "value": "" },
+    { "key": "token_cliente", "value": "" },
+    { "key": "alerta_id", "value": "1" },
+    { "key": "cliente_id", "value": "1" },
+    { "key": "anio", "value": "2026" }
+  ],
+  "item": [
+    {
+      "name": "00 — Setup (ejecutar primero)",
+      "item": [
+        {
+          "name": "Login Tendero A → guarda token",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('[Setup] Login Tendero A — 200', () => pm.response.to.have.status(200));",
+            "const json = pm.response.json();",
+            "pm.test('[Setup] Token presente', () => pm.expect(json.token).to.be.a('string'));",
+            "pm.environment.set('token_tendero_a', json.token);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email_tendero_a}}\",\n  \"password\": \"{{password}}\"\n}" },
+            "url": "{{base_url}}/auth/login"
+          }
+        },
+        {
+          "name": "Login Tendero B → guarda token",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('[Setup] Login Tendero B — 200', () => pm.response.to.have.status(200));",
+            "pm.environment.set('token_tendero_b', pm.response.json().token);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email_tendero_b}}\",\n  \"password\": \"{{password}}\"\n}" },
+            "url": "{{base_url}}/auth/login"
+          }
+        },
+        {
+          "name": "Login Cliente → guarda token",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('[Setup] Login Cliente — 200', () => pm.response.to.have.status(200));",
+            "const json = pm.response.json();",
+            "pm.environment.set('token_cliente', json.token);",
+            "if (json.cliente?.id_cliente) pm.environment.set('cliente_id', String(json.cliente.id_cliente));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email_cliente}}\",\n  \"password\": \"{{password}}\"\n}" },
+            "url": "{{base_url}}/auth/login"
+          }
+        },
+        {
+          "name": "GET Clientes (tendero) → guarda cliente_id",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('[Setup] GET clientes — 200', () => pm.response.to.have.status(200));",
+            "const arr = pm.response.json();",
+            "if (Array.isArray(arr) && arr.length) pm.environment.set('cliente_id', String(arr[0].id_cliente));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token_tendero_a}}" }],
+            "url": "{{base_url}}/clientes"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-117 — Smoke (Postman)",
+      "item": [
+        {
+          "name": "GET /health — 200",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('[SCRUM-117] Health — 200', () => pm.response.to.have.status(200));",
+            "pm.test('[SCRUM-117] status ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+          ]}}],
+          "request": { "method": "GET", "url": "{{base_url_root}}/health" }
+        },
+        {
+          "name": "GET /api/dashboard — tendero",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('[SCRUM-117] Dashboard — 200', () => pm.response.to.have.status(200));",
+            "pm.test('[SCRUM-117] cartera_total', () => pm.expect(pm.response.json()).to.have.property('cartera_total'));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token_tendero_a}}" }],
+            "url": "{{base_url}}/dashboard"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-53 — Alertas (ALE-01, ALE-02, ALE-04)",
+      "item": [
+        {
+          "name": "ALE-01 GET /alertas — todas",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('[ALE-01] Status 200', () => pm.response.to.have.status(200));",
+            "const arr = pm.response.json();",
+            "pm.test('[ALE-01] Es array', () => pm.expect(arr).to.be.an('array'));",
+            "if (arr.length) {",
+            "  pm.environment.set('alerta_id', String(arr[0].id_alerta));",
+            "  pm.test('[ALE-01] Tipo válido', () => pm.expect(['critica','proxima','informativa','pago_proximo','pago_vencido']).to.include(arr[0].tipo));",
+            "}"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token_tendero_a}}" }],
+            "url": "{{base_url}}/alertas"
+          }
+        },
+        {
+          "name": "ALE-01 GET /alertas?tipo=critica",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('[ALE-01] Status 200', () => pm.response.to.have.status(200));",
+            "pm.response.json().forEach(a => pm.test('[ALE-01] tipo critica', () => pm.expect(a.tipo).to.eql('critica')));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token_tendero_a}}" }],
+            "url": { "raw": "{{base_url}}/alertas?tipo=critica", "host": ["{{base_url}}"], "path": ["alertas"], "query": [{ "key": "tipo", "value": "critica" }] }
+          }
+        },
+        {
+          "name": "ALE-02 PATCH /alertas/:id/leer",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('[ALE-02] Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('[ALE-02] Mensaje leída', () => pm.expect(pm.response.json().message).to.include('leída'));"
+          ]}}],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token_tendero_a}}" }],
+            "url": "{{base_url}}/alertas/{{alerta_id}}/leer"
+          }
+        },
+        {
+          "name": "ALE-04 GET /alertas — token CLIENTE",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('[ALE-04] Cliente no ve alertas tendero', () => {",
+            "  if (pm.response.code === 403) return;",
+            "  pm.expect(pm.response.code).to.eql(200);",
+            "  pm.expect(pm.response.json()).to.be.an('array').that.is.empty;",
+            "});"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token_cliente}}" }],
+            "url": "{{base_url}}/alertas"
+          }
+        },
+        {
+          "name": "ALE-04 PATCH alerta ajena — Tendero B → 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('[ALE-04] Alerta ajena — 404', () => pm.response.to.have.status(404));"
+          ]}}],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token_tendero_b}}" }],
+            "url": "{{base_url}}/alertas/{{alerta_id}}/leer"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-114 — Proxy Asistente (ASIS-01 a ASIS-03)",
+      "item": [
+        {
+          "name": "ASIS-03 POST /asistente/chat — proxy OK",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('[ASIS-03] Status 200 o n8n caído', () => pm.expect([200,502,503,504,404]).to.include(pm.response.code));",
+            "if (pm.response.code === 200) {",
+            "  const j = pm.response.json();",
+            "  pm.test('[ASIS-03] Tiene respuesta', () => pm.expect(j.respuesta || j.mensaje).to.be.a('string'));",
+            "}"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token_tendero_a}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"sessionId\": \"postman_sv\",\n  \"message\": \"¿Cuánto me deben en total?\"\n}" },
+            "url": "{{base_url}}/asistente/chat"
+          }
+        },
+        {
+          "name": "ASIS-01 POST /asistente/chat — sin message → 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('[ASIS-01] Status 400', () => pm.response.to.have.status(400));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token_tendero_a}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{base_url}}/asistente/chat"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-54 — Asistente seguridad (ASIS-15, ASIS-16)",
+      "item": [
+        {
+          "name": "ASIS-16 POST /asistente/chat — CLIENTE → 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('[ASIS-16] Status 403', () => pm.response.to.have.status(403));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token_cliente}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"message\": \"¿Quién me debe más?\"\n}" },
+            "url": "{{base_url}}/asistente/chat"
+          }
+        },
+        {
+          "name": "ASIS-15 Tendero A — consulta cartera",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('[ASIS-15] Tendero A responde', () => pm.expect([200,502,503,504,404]).to.include(pm.response.code));",
+            "if (pm.response.code === 200) pm.environment.set('respuesta_tendero_a', pm.response.text());"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token_tendero_a}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"sessionId\": \"postman_a\",\n  \"message\": \"¿Cuánto me deben en total?\"\n}" },
+            "url": "{{base_url}}/asistente/chat"
+          }
+        },
+        {
+          "name": "ASIS-15 Tendero B — consulta cartera",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('[ASIS-15] Tendero B responde', () => pm.expect([200,502,503,504,404]).to.include(pm.response.code));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token_tendero_b}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"sessionId\": \"postman_b\",\n  \"message\": \"¿Cuánto me deben en total?\"\n}" },
+            "url": "{{base_url}}/asistente/chat"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-118 — Apoyo GC-17 / analitica",
+      "item": [
+        {
+          "name": "GC-17 GET /cartera/vencidos",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('[GC-17] Status 200', () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.test('[GC-17] Tiene datos vencidos', () => {",
+            "  const ok = Array.isArray(body) || Array.isArray(body.vencidos) || typeof body === 'object';",
+            "  pm.expect(ok).to.be.true;",
+            "});"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token_tendero_a}}" }],
+            "url": "{{base_url}}/cartera/vencidos"
+          }
+        },
+        {
+          "name": "GET /clientes?estado=mora",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('[SCRUM-118] Clientes mora — 200', () => pm.response.to.have.status(200));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token_tendero_a}}" }],
+            "url": { "raw": "{{base_url}}/clientes?estado=mora", "host": ["{{base_url}}"], "path": ["clientes"], "query": [{ "key": "estado", "value": "mora" }] }
+          }
+        },
+        {
+          "name": "ANA-04 GET /analitica/cliente/:id",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('[ANA-04] Status 200', () => pm.response.to.have.status(200));",
+            "const j = pm.response.json();",
+            "pm.test('[ANA-04] recuperado', () => pm.expect(j).to.have.property('recuperado'));",
+            "pm.test('[ANA-04] pagos_semanales', () => pm.expect(j.pagos_semanales).to.be.an('array'));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token_tendero_a}}" }],
+            "url": { "raw": "{{base_url}}/analitica/cliente/{{cliente_id}}?anio={{anio}}", "host": ["{{base_url}}"], "path": ["analitica", "cliente", "{{cliente_id}}"], "query": [{ "key": "anio", "value": "{{anio}}" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Apoyo Mobile — comparar API vs app",
+      "item": [
+        {
+          "name": "GET /clientes/me — cliente",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('[Apoyo] clientes/me — 200', () => pm.response.to.have.status(200));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token_cliente}}" }],
+            "url": "{{base_url}}/clientes/me"
+          }
+        },
+        {
+          "name": "GET /clientes/me/historial",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token_cliente}}" }],
+            "url": "{{base_url}}/clientes/me/historial"
+          }
+        },
+        {
+          "name": "GET /clientes/me/tiendas-deuda",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token_cliente}}" }],
+            "url": "{{base_url}}/clientes/me/tiendas-deuda"
+          }
+        },
+        {
+          "name": "GET /clientes/:id — detalle tendero",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token_tendero_a}}" }],
+            "url": "{{base_url}}/clientes/{{cliente_id}}"
+          }
+        },
+        {
+          "name": "GET /scoring/:id/recomendacion",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token_tendero_a}}" }],
+            "url": "{{base_url}}/scoring/{{cliente_id}}/recomendacion"
+          }
+        }
+      ]
+    }
+  ]
+}

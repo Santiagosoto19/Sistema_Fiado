@@ -1,0 +1,14 @@
+{
+  "name": "fiadocheck-postman-sv",
+  "private": true,
+  "description": "Newman runner + reporte Obsidian para pruebas SV",
+  "scripts": {
+    "test:sv": "newman run FiadoCheck-SV-Pruebas.postman_collection.json -e FiadoCheck-SV-Pruebas.postman_environment.json --reporters cli,json,htmlextra --reporter-json-export reports/newman-results.json --reporter-htmlextra-export reports/postman-report.html --reporter-htmlextra-title \"FiadoCheck SV — Postman\"",
+    "report:obsidian": "node generate-obsidian-report.js reports/newman-results.json",
+    "docs:sv": "npm run test:sv && npm run report:obsidian"
+  },
+  "devDependencies": {
+    "newman": "^6.2.1",
+    "newman-reporter-htmlextra": "^1.23.1"
+  }
+}

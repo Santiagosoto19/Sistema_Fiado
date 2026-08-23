@@ -167,8 +167,18 @@ Las colecciones de Postman en `backend/postman/` cubren el plan de pruebas del p
 | `FiadoCheck-SCRUM-66-Sesion` | Revocación e invalidación de sesión |
 | `FiadoCheck-SCRUM-110-Scoring` | Cálculo de scoring e integración con el ML |
 | `FiadoCheck-SCRUM-111-Recomendacion` | Recomendación IA por nivel de riesgo |
+| `FiadoCheck-SV-Pruebas` | Sprint validación (alertas, asistente, analítica, cartera) — ver `run-postman-docs.ps1` |
 
 Importar junto con `FiadoCheck-Local.postman_environment.json` o `FiadoCheck-Azure.postman_environment.json` y ejecutar con el Collection Runner. Las credenciales de prueba están documentadas en `backend/postman/CREDENCIALES-PRUEBAS.md`.
+
+Para la colección SV con Newman y reporte automático a Obsidian:
+
+```powershell
+cd backend/postman
+.\run-postman-docs.ps1
+```
+
+Ver `backend/postman/README.md` para qué archivos van al repo y cuáles no (`node_modules/`, `reports/`).
 
 ---
 

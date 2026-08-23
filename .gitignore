@@ -1,6 +1,7 @@
 # Dependencias
 node_modules/
 backend/node_modules/
+backend/postman/node_modules/
 mobile/node_modules/
 
 # Entornos virtuales de Python
@@ -19,6 +20,7 @@ __pycache__/
 
 # Builds
 backend/deploy/
+backend/postman/reports/
 .expo/
 dist/
 build/
