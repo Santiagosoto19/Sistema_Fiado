@@ -8,6 +8,17 @@
     "dev": "nodemon src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "nodemonConfig": {
+    "watch": [
+      "src"
+    ],
+    "ext": "js,json",
+    "ignore": [
+      "ml_service/*",
+      "postman/*",
+      "scripts/*"
+    ]
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
