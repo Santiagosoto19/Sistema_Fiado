@@ -82,21 +82,39 @@ def _close_pool():
         _pool = None
 
 
-def get_features(id_cliente: int):
+def get_features(id_cliente: int, id_tendero=None):
     """Devuelve [pts_puntualidad, pts_historial, pts_cumplimiento, pts_antiguedad, puntaje_calc].
-    El puntaje se calcula como suma de las 4 variables (ya no se almacena en BD)."""
+    El puntaje se calcula como suma de las 4 variables (ya no se almacena en BD).
+
+    El scoring es por par (cliente, tendero): un mismo cliente tiene un historial
+    distinto en cada tienda. id_tendero es opcional solo para no romper si un
+    backend antiguo aún no lo envía; en ese caso se toma la fila más reciente,
+    que puede ser la de otro tendero.
+    """
     with get_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                """
-                SELECT pts_puntualidad, pts_historial, pts_cumplimiento, pts_antiguedad
-                FROM scoring
-                WHERE id_cliente = %s
-                ORDER BY fecha_calculo DESC
-                LIMIT 1
-                """,
-                (str(id_cliente),),
-            )
+            if id_tendero is not None:
+                cur.execute(
+                    """
+                    SELECT pts_puntualidad, pts_historial, pts_cumplimiento, pts_antiguedad
+                    FROM scoring
+                    WHERE id_cliente = %s AND id_tendero = %s
+                    ORDER BY fecha_calculo DESC
+                    LIMIT 1
+                    """,
+                    (str(id_cliente), str(id_tendero)),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT pts_puntualidad, pts_historial, pts_cumplimiento, pts_antiguedad
+                    FROM scoring
+                    WHERE id_cliente = %s
+                    ORDER BY fecha_calculo DESC
+                    LIMIT 1
+                    """,
+                    (str(id_cliente),),
+                )
             row = cur.fetchone()
 
     if not row:
@@ -112,38 +130,45 @@ def get_features(id_cliente: int):
     ]
 
 
-def get_limit_data(id_cliente: int):
+def get_limit_data(id_cliente: int, id_tendero=None):
     """
     Retorna (base, saldo_pendiente) para calcular el límite sugerido.
     - base = promedio de los últimos 3 créditos cerrados (pagado + vencido)
     - saldo_pendiente = suma de saldo_pendiente de créditos no pagados (vigentes + vencidos)
+
+    Los créditos se filtran por tendero cuando se conoce: el límite que se le
+    sugiere a una tienda debe salir de lo que esa tienda fió, no de lo que el
+    cliente deba en otro negocio. El backend Node ya lo calcula así.
     """
+    filtro_tendero = "AND id_tendero = %s" if id_tendero is not None else ""
+    params = (str(id_cliente), str(id_tendero)) if id_tendero is not None else (str(id_cliente),)
+
     with get_connection() as conn:
         with conn.cursor() as cur:
             # Promedio de los últimos 3 créditos cerrados
             cur.execute(
-                """
+                f"""
                 SELECT COALESCE(AVG(monto_total), 0)
                 FROM (
                     SELECT monto_total
                     FROM creditos
-                    WHERE id_cliente = %s AND estado IN ('pagado', 'vencido')
+                    WHERE id_cliente = %s AND estado IN ('pagado', 'vencido') {filtro_tendero}
                     ORDER BY fecha_credito DESC
                     LIMIT 3
                 ) sub
                 """,
-                (str(id_cliente),),
+                params,
             )
             base = float(cur.fetchone()[0])
 
             # Saldo pendiente actual (créditos que no están pagados)
             cur.execute(
-                """
+                f"""
                 SELECT COALESCE(SUM(saldo_pendiente), 0)
                 FROM creditos
-                WHERE id_cliente = %s AND estado != 'pagado'
+                WHERE id_cliente = %s AND estado != 'pagado' {filtro_tendero}
                 """,
-                (str(id_cliente),),
+                params,
             )
             saldo_pendiente = float(cur.fetchone()[0])
 

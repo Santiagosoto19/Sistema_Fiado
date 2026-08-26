@@ -59,6 +59,9 @@ def health():
 
 class PredictRequest(BaseModel):
     id_cliente: int
+    # El scoring es por par (cliente, tendero). Opcional para tolerar un backend
+    # antiguo durante un despliegue escalonado; sin él se usa la fila más reciente.
+    id_tendero: int | None = None
 
 
 class RetrainRequest(BaseModel):
@@ -71,7 +74,7 @@ def predict(req: PredictRequest):
     if model_data is None:
         return {"error": "Modelo no entrenado. Ejecuta model.py primero."}
 
-    features = get_features(req.id_cliente)
+    features = get_features(req.id_cliente, req.id_tendero)
     if features is None:
         return {"error": "No se encontraron datos de scoring para este cliente"}
 
@@ -86,7 +89,7 @@ def predict(req: PredictRequest):
     puntaje_rf = int(base_scores.get(nivel_riesgo, 50) * confidence)
     puntaje_rf = max(0, min(100, puntaje_rf))
 
-    base, saldo_pendiente = get_limit_data(req.id_cliente)
+    base, saldo_pendiente = get_limit_data(req.id_cliente, req.id_tendero)
 
     if nivel_riesgo == "bajo":
         factor = 1.5

@@ -324,8 +324,8 @@ router.get('/me', async (req, res) => {
     `, [idCliente, idTendero]);
 
     const scoring = await pool.query(`
-      SELECT * FROM scoring WHERE id_cliente = $1 ORDER BY fecha_calculo DESC LIMIT 1
-    `, [idCliente]);
+      SELECT * FROM scoring WHERE id_cliente = $1 AND id_tendero = $2 ORDER BY fecha_calculo DESC LIMIT 1
+    `, [idCliente, idTendero]);
 
     const creditosHistorico = await queryCreditosHistorico(pool, idCliente, idTendero);
     const sinHistorialCrediticio = creditosHistorico === 0;
@@ -398,8 +398,8 @@ router.get('/:id', async (req, res) => {
     `, [id, idTendero]);
 
     const scoring = await pool.query(`
-      SELECT * FROM scoring WHERE id_cliente = $1 ORDER BY fecha_calculo DESC LIMIT 1
-    `, [id]);
+      SELECT * FROM scoring WHERE id_cliente = $1 AND id_tendero = $2 ORDER BY fecha_calculo DESC LIMIT 1
+    `, [id, idTendero]);
 
     const tiendaResult = await pool.query(`
       SELECT t.nombre, t.nombre_tienda, t.telefono, t.direccion

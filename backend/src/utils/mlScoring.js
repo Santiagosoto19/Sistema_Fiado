@@ -1,21 +1,24 @@
 const { mlPost } = require('./mlServiceClient');
 const { calcularLimiteSugerido } = require('./scoringUtils');
 
-async function callMLService(clienteId) {
-  const postData = JSON.stringify({ id_cliente: parseInt(clienteId, 10) });
+// El microservicio necesita el tendero porque las features salen de la fila de
+// scoring de ese par: un mismo cliente tiene un historial distinto en cada tienda.
+async function callMLService(clienteId, idTendero) {
+  const postData = JSON.stringify({
+    id_cliente: parseInt(clienteId, 10),
+    id_tendero: parseInt(idTendero, 10),
+  });
   const json = await mlPost('/predict', postData);
   if (json.error) throw new Error(json.error);
   return json;
 }
 
-async function persistMLPrediction(pool, clienteId, nivelRiesgo, confianza, limiteSugerido) {
+async function persistMLPrediction(pool, clienteId, idTendero, nivelRiesgo, confianza, limiteSugerido) {
   await pool.query(`
     UPDATE scoring
     SET nivel_riesgo = $1, confianza = $2, limite_sugerido = $3
-    WHERE id_scoring = (
-      SELECT id_scoring FROM scoring WHERE id_cliente = $4 ORDER BY fecha_calculo DESC LIMIT 1
-    )
-  `, [nivelRiesgo, confianza, limiteSugerido, clienteId]);
+    WHERE id_cliente = $4 AND id_tendero = $5
+  `, [nivelRiesgo, confianza, limiteSugerido, clienteId, idTendero]);
 }
 
 /**
@@ -34,9 +37,9 @@ async function syncMLPrediction(pool, clienteId, scoringRow, idTendero, options 
   if (scoringRow.confianza != null) return scoringRow;
 
   try {
-    const rf = await callMLService(clienteId);
+    const rf = await callMLService(clienteId, idTendero);
     const limiteSugerido = await calcularLimiteSugerido(pool, clienteId, idTendero, rf.nivel_riesgo);
-    await persistMLPrediction(pool, clienteId, rf.nivel_riesgo, rf.confianza, limiteSugerido);
+    await persistMLPrediction(pool, clienteId, idTendero, rf.nivel_riesgo, rf.confianza, limiteSugerido);
     return {
       ...scoringRow,
       nivel_riesgo: rf.nivel_riesgo,
