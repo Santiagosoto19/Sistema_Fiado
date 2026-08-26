@@ -1,6 +1,10 @@
 import os
 import json
-import psycopg2
+import atexit
+import threading
+from contextlib import contextmanager
+
+from psycopg2 import pool as pgpool
 from dotenv import dotenv_values, load_dotenv
 from psycopg2.extras import RealDictCursor
 
@@ -26,28 +30,74 @@ if not os.environ.get("DATABASE_URL"):
 STATE_FILE = os.path.join(BASE_DIR, 'ml_state.json')
 
 
+# Pool de conexiones.
+#
+# Antes cada consulta abría su propia conexión con psycopg2.connect() y la
+# cerraba al terminar. Como /predict invoca get_features() y get_limit_data(),
+# eran dos handshakes TCP+SSL completos contra NeonDB por cada predicción.
+#
+# Es threaded porque el reentrenamiento corre en un hilo de background
+# (_retrain_in_background en predict.py) y también consulta la base.
+_pool = None
+_pool_lock = threading.Lock()
+
+
+def _get_pool():
+    global _pool
+    if _pool is None:
+        with _pool_lock:
+            if _pool is None:
+                _pool = pgpool.ThreadedConnectionPool(
+                    minconn=1,
+                    maxconn=5,
+                    dsn=os.getenv("DATABASE_URL"),
+                )
+    return _pool
+
+
+@contextmanager
 def get_connection():
-    return psycopg2.connect(os.getenv("DATABASE_URL"))
+    """Entrega una conexión del pool y la devuelve al terminar.
+
+    Uso: `with get_connection() as conn:`. La conexión NO debe cerrarse a mano;
+    si la operación falla se descarta en lugar de reciclarla, porque puede
+    haber quedado en un estado inservible.
+    """
+    pool = _get_pool()
+    conn = pool.getconn()
+    try:
+        yield conn
+    except Exception:
+        pool.putconn(conn, close=True)
+        raise
+    else:
+        pool.putconn(conn)
+
+
+@atexit.register
+def _close_pool():
+    global _pool
+    if _pool is not None:
+        _pool.closeall()
+        _pool = None
 
 
 def get_features(id_cliente: int):
     """Devuelve [pts_puntualidad, pts_historial, pts_cumplimiento, pts_antiguedad, puntaje_calc].
     El puntaje se calcula como suma de las 4 variables (ya no se almacena en BD)."""
-    conn = get_connection()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute(
-        """
-        SELECT pts_puntualidad, pts_historial, pts_cumplimiento, pts_antiguedad
-        FROM scoring
-        WHERE id_cliente = %s
-        ORDER BY fecha_calculo DESC
-        LIMIT 1
-        """,
-        (str(id_cliente),),
-    )
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT pts_puntualidad, pts_historial, pts_cumplimiento, pts_antiguedad
+                FROM scoring
+                WHERE id_cliente = %s
+                ORDER BY fecha_calculo DESC
+                LIMIT 1
+                """,
+                (str(id_cliente),),
+            )
+            row = cur.fetchone()
 
     if not row:
         return None
@@ -68,65 +118,57 @@ def get_limit_data(id_cliente: int):
     - base = promedio de los últimos 3 créditos cerrados (pagado + vencido)
     - saldo_pendiente = suma de saldo_pendiente de créditos no pagados (vigentes + vencidos)
     """
-    conn = get_connection()
-    cur = conn.cursor()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            # Promedio de los últimos 3 créditos cerrados
+            cur.execute(
+                """
+                SELECT COALESCE(AVG(monto_total), 0)
+                FROM (
+                    SELECT monto_total
+                    FROM creditos
+                    WHERE id_cliente = %s AND estado IN ('pagado', 'vencido')
+                    ORDER BY fecha_credito DESC
+                    LIMIT 3
+                ) sub
+                """,
+                (str(id_cliente),),
+            )
+            base = float(cur.fetchone()[0])
 
-    # Promedio de los últimos 3 créditos cerrados
-    cur.execute(
-        """
-        SELECT COALESCE(AVG(monto_total), 0)
-        FROM (
-            SELECT monto_total
-            FROM creditos
-            WHERE id_cliente = %s AND estado IN ('pagado', 'vencido')
-            ORDER BY fecha_credito DESC
-            LIMIT 3
-        ) sub
-        """,
-        (str(id_cliente),),
-    )
-    base = float(cur.fetchone()[0])
-
-    # Saldo pendiente actual (créditos que no están pagados)
-    cur.execute(
-        """
-        SELECT COALESCE(SUM(saldo_pendiente), 0)
-        FROM creditos
-        WHERE id_cliente = %s AND estado != 'pagado'
-        """,
-        (str(id_cliente),),
-    )
-    saldo_pendiente = float(cur.fetchone()[0])
-
-    cur.close()
-    conn.close()
+            # Saldo pendiente actual (créditos que no están pagados)
+            cur.execute(
+                """
+                SELECT COALESCE(SUM(saldo_pendiente), 0)
+                FROM creditos
+                WHERE id_cliente = %s AND estado != 'pagado'
+                """,
+                (str(id_cliente),),
+            )
+            saldo_pendiente = float(cur.fetchone()[0])
 
     return base, saldo_pendiente
 
 
 def fetch_all_scoring():
     """Devuelve filas con las 4 variables + nivel_riesgo. El puntaje se recalcula en model.py."""
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT pts_puntualidad, pts_historial, pts_cumplimiento, pts_antiguedad, nivel_riesgo
-        FROM scoring
-        """
-    )
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT pts_puntualidad, pts_historial, pts_cumplimiento, pts_antiguedad, nivel_riesgo
+                FROM scoring
+                """
+            )
+            rows = cur.fetchall()
     return rows
 
 
 def count_scoring_records() -> int:
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM scoring")
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM scoring")
+            row = cur.fetchone()
     return row[0]
 
 

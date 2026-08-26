@@ -287,6 +287,26 @@ router.post('/registerClientes', async (req, res) => {
       return res.status(400).json({ error: 'Email, contraseña, nombre y cédula son requeridos' });
     }
 
+    // 2. Validaciones de formato y complejidad.
+    // Deben coincidir con las de registerTendero y change-password: sin esto
+    // un cliente podía registrarse con una contraseña que el propio sistema
+    // le rechazaría después al intentar cambiarla.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return res.status(400).json({ error: 'Email inválido' });
+    }
+
+    if (cedula.trim().length < 7) {
+      return res.status(400).json({ error: 'La cédula debe tener al menos 7 caracteres' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
+    }
+
+    if (!/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+      return res.status(400).json({ error: 'La contraseña debe tener al menos una mayúscula y un número' });
+    }
+
     await client.query('BEGIN');
 
     // 2. Verificar si el email ya existe

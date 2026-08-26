@@ -4,6 +4,12 @@ const authMiddleware = require('../middleware/auth');
 const router = express.Router();
 router.use(authMiddleware);
 
+// n8n expone dos URLs por webhook: /webhook (producción, activa mientras el
+// workflow lo esté) y /webhook-test (solo responde mientras el canvas está
+// abierto y se pulsó "Execute workflow"). Copiar la de pruebas es fácil y el
+// síntoma es un 404 "webhook not registered" sin pista de la causa.
+const TIMEOUT_N8N_MS = 30000;
+
 const resolveN8nWebhookUrl = () => {
   let url = (process.env.N8N_WEBHOOK_URL || '').trim();
   if (!url) return '';
@@ -12,7 +18,12 @@ const resolveN8nWebhookUrl = () => {
     url = `https://${url.replace(/^\/+/, '')}`;
   }
 
-  if (!url.includes('/webhook')) {
+  if (url.includes('/webhook-test/')) {
+    console.warn(
+      '[Asistente] N8N_WEBHOOK_URL apunta a /webhook-test/, que solo responde ' +
+      'con el canvas de n8n abierto. Usa /webhook/ para producción.'
+    );
+  } else if (!/\/webhook\//.test(url)) {
     url = `${url.replace(/\/+$/, '')}/webhook/fiadocheck-asistente`;
   }
 
@@ -59,11 +70,25 @@ router.post('/chat', async (req, res) => {
       },
     };
 
-    const n8nRes = await fetch(n8nUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    // Sin timeout, un n8n dormido o inaccesible deja la petición colgada hasta
+    // que el gateway la corta (~4 min en Azure) y el chat se congela sin aviso.
+    let n8nRes;
+    try {
+      n8nRes = await fetch(n8nUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(TIMEOUT_N8N_MS),
+      });
+    } catch (err) {
+      if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+        console.error('[Asistente] Timeout al contactar n8n:', n8nUrl);
+        return res.status(504).json({
+          error: 'El asistente IA está tardando demasiado en responder. Inténtalo de nuevo en unos segundos.',
+        });
+      }
+      throw err;
+    }
 
     const json = await n8nRes.json().catch(() => ({}));
 
