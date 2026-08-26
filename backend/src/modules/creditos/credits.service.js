@@ -4,7 +4,7 @@
 
 const AppError = require('../../utils/AppError');
 const { triggerMLRetrain } = require('../../utils/mlTrigger');
-const { toDateKey, todayLocalKey } = require('../../utils/dateUtils');
+const { toDateKey, todayBusinessKey } = require('../../utils/dateUtils');
 const creditsRepository = require('./credits.repository');
 
 const round2 = (valor) => Math.round((valor + Number.EPSILON) * 100) / 100;
@@ -42,7 +42,7 @@ const validarConsistenciaPago = (credito, monto, fechaAbono) => {
     throw new AppError('La fecha del abono es inválida', 400);
   }
 
-  const hoyKey = todayLocalKey();
+  const hoyKey = todayBusinessKey();
   if (abonoKey > hoyKey) {
     throw new AppError('La fecha del abono no puede ser futura', 400);
   }
