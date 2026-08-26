@@ -23,8 +23,18 @@ app.use(cors());
 app.use(express.json({ limit: '15mb' }));
 
 // Health check
+// Incluye version y entorno para poder confirmar desde fuera qué build está
+// desplegado, sin depender de los logs del App Service.
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    service: 'fiadocheck-api',
+    version: require('../package.json').version,
+    entorno: process.env.NODE_ENV || 'development',
+    ml_configurado: Boolean(process.env.ML_SERVICE_URL),
+    n8n_configurado: Boolean(process.env.N8N_WEBHOOK_URL),
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // Rutas API

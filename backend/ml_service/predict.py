@@ -40,6 +40,23 @@ def _get_model():
     return _model_data
 
 
+@app.get("/health")
+def health():
+    """Estado del microservicio.
+
+    Permite comprobar desde fuera si el servicio responde y si el modelo está
+    cargado, sin tener que recurrir a /docs ni provocar una predicción real.
+    """
+    state = load_state()
+    return {
+        "status": "ok",
+        "service": "fiadocheck-ml",
+        "modelo_cargado": _get_model() is not None,
+        "db_configurada": bool(os.environ.get("DATABASE_URL")),
+        "last_train_count": state.get("last_train_count", 0),
+    }
+
+
 class PredictRequest(BaseModel):
     id_cliente: int
 
