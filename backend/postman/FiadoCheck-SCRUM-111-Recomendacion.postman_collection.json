@@ -1,21 +1,24 @@
 {
   "info": {
     "name": "FiadoCheck — SCRUM-111 Recomendación IA (REC-01 a REC-07)",
-    "description": "Colección ejecutable del bloque §4.5 del plan de pruebas (responsable: Eliel).\nEndpoint: GET /api/scoring/:clienteId/recomendacion\n\nCONTRATO REAL — CORRECCIÓN v3\nEste endpoint señala las condiciones anómalas con el campo 'estado' dentro de una\nrespuesta HTTP 200, NO con códigos de error. El criterio de éxito de REC-01, REC-02\ny REC-03 es el valor de 'estado', no el status HTTP. No reportar como fallo un 200.\n\nDATOS VERIFICADOS EN BASE DE DATOS\n  Tendero 1 (carlos.mendez@fiado.com / FiadoTest2026)\n    cliente 2   -> nivel bajo,  3 créditos  -> REC-04 aprobar\n    cliente 1   -> nivel medio, 3 créditos  -> REC-05 con_precaucion\n    cliente 59  -> con vínculo, 0 créditos  -> REC-03 sin_credito_tienda\n    cliente 6   -> existe, NO vinculado al 1 -> REC-02 cliente_sin_vinculo\n    999999999   -> no existe                 -> REC-01 cliente_no_existe\n\n  Tendero 3 (pedro.garcia@fiado.com / FiadoTest2026)\n    cliente 5   -> nivel alto,  3 créditos  -> REC-06 rechazar\n\nPOR QUÉ DOS TENDEROS\nNingún tendero de la base tiene clientes con crédito en los tres niveles a la vez.\nEl tendero 1 cubre bajo y medio; el único par (tendero, cliente) con nivel alto Y\ncréditos está bajo el tendero 3. Por eso REC-06 hace su propio login.\n\nSi la petición 08 falla con 401, es porque pedro.garcia@fiado.com aún no tiene\ncontraseña conocida. El resto de la colección funciona igual.\n\nORDEN: ejecutar después de SCRUM-110, porque la recomendación exige que el scoring\nya exista. Si algún caso devuelve 404 'No existe scoring', calcula primero con\nPOST /api/scoring/:clienteId/calcular.",
+    "description": "Colección ejecutable del bloque §4.5 del plan de pruebas (responsable: Eliel).\nEndpoint: GET /api/scoring/:clienteId/recomendacion\n\nCONTRATO REAL — CORRECCIÓN v3\nEste endpoint señala las condiciones anómalas con el campo 'estado' dentro de una\nrespuesta HTTP 200, NO con códigos de error. El criterio de éxito de REC-01, REC-02\ny REC-03 es el valor de 'estado', no el status HTTP. No reportar como fallo un 200.\n\nDATOS VERIFICADOS EN BASE DE DATOS (actualizado tras corregir BUG-009)\n  Tendero 1 (carlos.mendez@fiado.com / FiadoTest2026)\n    cliente 1   -> nivel medio, 4 créditos  -> REC-05 con_precaucion\n    cliente 59  -> con vínculo, 0 créditos  -> REC-03 sin_credito_tienda\n    cliente 6   -> existe, NO vinculado al 1 -> REC-02 cliente_sin_vinculo\n    999999999   -> no existe                 -> REC-01 cliente_no_existe\n\n  Tendero 2 (soto@fiado.com)\n    cliente 4   -> nivel bajo,  3 créditos  -> REC-04 aprobar\n\n  Tendero 3 (pedro.garcia@fiado.com / FiadoTest2026)\n    cliente 5   -> nivel alto,  3 créditos  -> REC-06 rechazar\n\nCAMBIO DE FIXTURE EN REC-04 (por BUG-009)\nREC-04 usaba antes el cliente 2 del tendero 1. Esa fila de scoring tenía puntos por\nencima del tope de 25 (pts_puntualidad=35, pts_historial=30), lo que la dejaba\nartificialmente en 100. Al recalcularla con POST /scoring/2/calcular bajó a 50 y dejó\nde ser 'bajo'. Hoy ningún cliente del tendero 1 tiene nivel bajo, así que el caso pasa\nal cliente 4 (Rosa Peña, 85 puntos, 3 créditos), cuyo dueño es el tendero 2; por eso\nREC-04 hace su propio login.\n\nPOR QUÉ TRES TENDEROS\nNingún tendero de la base tiene clientes con crédito en los tres niveles a la vez.\nEl tendero 1 solo cubre medio; el nivel bajo con créditos está bajo el tendero 2 y el\nnivel alto con créditos bajo el tendero 3. Por eso REC-04 y REC-06 hacen su propio login.\n\nSi la petición 08 falla con 401, es porque pedro.garcia@fiado.com aún no tiene\ncontraseña conocida. El resto de la colección funciona igual.\n\nORDEN: ejecutar después de SCRUM-110, porque la recomendación exige que el scoring\nya exista. Si algún caso devuelve 404 'No existe scoring', calcula primero con\nPOST /api/scoring/:clienteId/calcular.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     { "key": "tenderoEmail", "value": "carlos.mendez@fiado.com" },
     { "key": "tenderoPassword", "value": "FiadoTest2026" },
+    { "key": "tendero2Email", "value": "soto@fiado.com" },
+    { "key": "tendero2Password", "value": "123456" },
     { "key": "tendero3Email", "value": "pedro.garcia@fiado.com" },
     { "key": "tendero3Password", "value": "FiadoTest2026" },
-    { "key": "clienteBajo", "value": "2" },
+    { "key": "clienteBajo", "value": "4" },
     { "key": "clienteMedio", "value": "1" },
     { "key": "clienteAlto", "value": "5" },
     { "key": "clienteSinCreditos", "value": "59" },
     { "key": "clienteSinVinculo", "value": "6" },
     { "key": "clienteInexistente", "value": "999999999" },
     { "key": "tokenTendero", "value": "" },
+    { "key": "tokenTendero2", "value": "" },
     { "key": "tokenTendero3", "value": "" }
   ],
   "item": [
@@ -143,6 +146,29 @@
       }
     },
     {
+      "name": "04b — Setup: login tendero 2 (dueño del cliente bajo)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Setup t2 — login correcto', function () { pm.response.to.have.status(200); });",
+              "const b = pm.response.json();",
+              "pm.test('Setup t2 — el token lleva id_tendero', function () { pm.expect(b.tendero).to.not.be.null; });",
+              "if (b.token) { pm.collectionVariables.set('tokenTendero2', b.token); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{tendero2Email}}\",\n  \"password\": \"{{tendero2Password}}\"\n}" },
+        "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+      }
+    },
+    {
       "name": "05 — REC-04: nivel bajo → aprobar",
       "event": [
         {
@@ -168,7 +194,7 @@
       ],
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{tokenTendero}}" }],
+        "header": [{ "key": "Authorization", "value": "Bearer {{tokenTendero2}}" }],
         "url": { "raw": "{{baseUrl}}/scoring/{{clienteBajo}}/recomendacion", "host": ["{{baseUrl}}"], "path": ["scoring", "{{clienteBajo}}", "recomendacion"] }
       }
     },
