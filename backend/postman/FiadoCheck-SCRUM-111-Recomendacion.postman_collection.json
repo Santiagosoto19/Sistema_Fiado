@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "FiadoCheck — SCRUM-111 Recomendación IA (REC-01 a REC-07)",
-    "description": "Colección ejecutable del bloque §4.5 del plan de pruebas (responsable: Eliel).\nEndpoint: GET /api/scoring/:clienteId/recomendacion\n\nCONTRATO REAL — CORRECCIÓN v3\nEste endpoint señala las condiciones anómalas con el campo 'estado' dentro de una\nrespuesta HTTP 200, NO con códigos de error. El criterio de éxito de REC-01, REC-02\ny REC-03 es el valor de 'estado', no el status HTTP. No reportar como fallo un 200.\n\nDATOS VERIFICADOS EN BASE DE DATOS (actualizado tras corregir BUG-009)\n  Tendero 1 (carlos.mendez@fiado.com / FiadoTest2026)\n    cliente 1   -> nivel medio, 4 créditos  -> REC-05 con_precaucion\n    cliente 59  -> con vínculo, 0 créditos  -> REC-03 sin_credito_tienda\n    cliente 6   -> existe, NO vinculado al 1 -> REC-02 cliente_sin_vinculo\n    999999999   -> no existe                 -> REC-01 cliente_no_existe\n\n  Tendero 2 (soto@fiado.com)\n    cliente 4   -> nivel bajo,  3 créditos  -> REC-04 aprobar\n\n  Tendero 3 (pedro.garcia@fiado.com / FiadoTest2026)\n    cliente 5   -> nivel alto,  3 créditos  -> REC-06 rechazar\n\nCAMBIO DE FIXTURE EN REC-04 (por BUG-009)\nREC-04 usaba antes el cliente 2 del tendero 1. Esa fila de scoring tenía puntos por\nencima del tope de 25 (pts_puntualidad=35, pts_historial=30), lo que la dejaba\nartificialmente en 100. Al recalcularla con POST /scoring/2/calcular bajó a 50 y dejó\nde ser 'bajo'. Hoy ningún cliente del tendero 1 tiene nivel bajo, así que el caso pasa\nal cliente 4 (Rosa Peña, 85 puntos, 3 créditos), cuyo dueño es el tendero 2; por eso\nREC-04 hace su propio login.\n\nPOR QUÉ TRES TENDEROS\nNingún tendero de la base tiene clientes con crédito en los tres niveles a la vez.\nEl tendero 1 solo cubre medio; el nivel bajo con créditos está bajo el tendero 2 y el\nnivel alto con créditos bajo el tendero 3. Por eso REC-04 y REC-06 hacen su propio login.\n\nSi la petición 08 falla con 401, es porque pedro.garcia@fiado.com aún no tiene\ncontraseña conocida. El resto de la colección funciona igual.\n\nORDEN: ejecutar después de SCRUM-110, porque la recomendación exige que el scoring\nya exista. Si algún caso devuelve 404 'No existe scoring', calcula primero con\nPOST /api/scoring/:clienteId/calcular.",
+    "description": "Colección ejecutable del bloque §4.5 del plan de pruebas (responsable: Eliel).\nEndpoint: GET /api/scoring/:clienteId/recomendacion\n\nCONTRATO REAL — CORRECCIÓN v3\nEste endpoint señala las condiciones anómalas con el campo 'estado' dentro de una\nrespuesta HTTP 200, NO con códigos de error. El criterio de éxito de REC-01, REC-02\ny REC-03 es el valor de 'estado', no el status HTTP. No reportar como fallo un 200.\n\nDATOS VERIFICADOS EN BASE DE DATOS (actualizado tras BUG-009 y BUG-012)\n  Tendero 1 (carlos.mendez@fiado.com / FiadoTest2026)\n    cliente 1   -> 4 créditos, con historial -> REC-07 contrato de la respuesta\n    cliente 59  -> con vínculo, 0 créditos   -> REC-03 sin_credito_tienda\n    cliente 6   -> existe, NO vinculado al 1 -> REC-02 cliente_sin_vinculo\n    999999999   -> no existe                  -> REC-01 cliente_no_existe\n\n  Tendero 2 (soto@fiado.com)\n    cliente 4   -> nivel bajo,  3 créditos   -> REC-04 aprobar\n\n  Tendero 3 (pedro.garcia@fiado.com / FiadoTest2026)\n    cliente 5   -> nivel alto,  3 créditos   -> REC-06 rechazar\n\n  Tendero 1234567890 - Villa Soto (villa@gmail.com / contraseña no incluida)\n    cliente 1035770283 -> nivel medio, 6 créditos -> REC-05 con_precaucion\n\nCAMBIO DE FIXTURE EN REC-04 (por BUG-009)\nREC-04 usaba antes el cliente 2 del tendero 1. Esa fila de scoring tenía puntos por\nencima del tope de 25 (pts_puntualidad=35, pts_historial=30), lo que la dejaba\nartificialmente en 100. Al recalcularla bajó a 50 y dejó de ser 'bajo'. El caso pasa\nal cliente 4 (Rosa Peña, 85 puntos), cuyo dueño es el tendero 2.\n\nCAMBIO DE FIXTURE EN REC-05 (por BUG-012)\nEl scoring pasó a calcularse por par (cliente, tendero) y todas las filas se\nregeneraron. El cliente 1 con el tendero 1, que era el caso de nivel medio, quedó en\n40 puntos y por tanto en nivel alto. Tras la regeneración solo UN par de toda la base\ncumple 'nivel medio CON créditos': el cliente 1035770283 con el tendero Villa Soto\n(60 puntos, 6 créditos). Las otras dos filas de nivel medio tienen cero créditos, así\nque devuelven sin_credito_tienda y sirven para REC-03, no para REC-05.\n\nANTES DE EJECUTAR: RELLENAR tenderoMedioPassword\nEsa variable viene vacía a propósito. villa@gmail.com es la cuenta personal de un\nintegrante del equipo, no una cuenta sembrada de pruebas, así que su contraseña no se\nguarda en el repositorio. Pídesela a Santiago y ponla en la variable de colección o en\ntu entorno de Postman antes de correr REC-05. Si la dejas vacía, la petición 05b\ndevuelve 401 y solo falla REC-05; el resto de la colección corre igual.\n\nREC-07 SE DESACOPLÓ DEL NIVEL\nREC-07 solo comprueba que la respuesta traiga todos los campos del contrato, no el\nnivel de riesgo. Antes compartía el fixture de REC-05 y se rompía cada vez que ese\ncliente cambiaba de nivel. Ahora usa su propia variable, clienteConHistorial, que\nsolo necesita un cliente con créditos en la tienda.\n\nPOR QUÉ CUATRO TENDEROS\nNingún tendero de la base tiene clientes con crédito en los tres niveles a la vez, y\ntras BUG-012 el reparto quedó aún más polarizado: 28 pares en nivel alto y 31 en bajo,\nfrente a 3 en medio. Cada nivel vive bajo un tendero distinto, así que REC-04, REC-05\ny REC-06 hacen cada uno su propio login.\n\nSi la petición 08 falla con 401, es porque pedro.garcia@fiado.com aún no tiene\ncontraseña conocida. El resto de la colección funciona igual.\n\nORDEN: ejecutar después de SCRUM-110, porque la recomendación exige que el scoring\nya exista. Si algún caso devuelve 404 'No existe scoring', calcula primero con\nPOST /api/scoring/:clienteId/calcular.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -11,15 +11,19 @@
     { "key": "tendero2Password", "value": "123456" },
     { "key": "tendero3Email", "value": "pedro.garcia@fiado.com" },
     { "key": "tendero3Password", "value": "FiadoTest2026" },
+    { "key": "tenderoMedioEmail", "value": "villa@gmail.com" },
+    { "key": "tenderoMedioPassword", "value": "" },
     { "key": "clienteBajo", "value": "4" },
-    { "key": "clienteMedio", "value": "1" },
+    { "key": "clienteMedio", "value": "1035770283" },
     { "key": "clienteAlto", "value": "5" },
+    { "key": "clienteConHistorial", "value": "1" },
     { "key": "clienteSinCreditos", "value": "59" },
     { "key": "clienteSinVinculo", "value": "6" },
     { "key": "clienteInexistente", "value": "999999999" },
     { "key": "tokenTendero", "value": "" },
     { "key": "tokenTendero2", "value": "" },
-    { "key": "tokenTendero3", "value": "" }
+    { "key": "tokenTendero3", "value": "" },
+    { "key": "tokenTenderoMedio", "value": "" }
   ],
   "item": [
     {
@@ -199,6 +203,29 @@
       }
     },
     {
+      "name": "05b — Setup: login tendero del cliente de nivel medio",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Setup medio — login correcto', function () { pm.response.to.have.status(200); });",
+              "const b = pm.response.json();",
+              "pm.test('Setup medio — el token lleva id_tendero', function () { pm.expect(b.tendero).to.not.be.null; });",
+              "if (b.token) { pm.collectionVariables.set('tokenTenderoMedio', b.token); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{tenderoMedioEmail}}\",\n  \"password\": \"{{tenderoMedioPassword}}\"\n}" },
+        "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+      }
+    },
+    {
       "name": "06 — REC-05: nivel medio → con_precaucion",
       "event": [
         {
@@ -221,7 +248,7 @@
       ],
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{tokenTendero}}" }],
+        "header": [{ "key": "Authorization", "value": "Bearer {{tokenTenderoMedio}}" }],
         "url": { "raw": "{{baseUrl}}/scoring/{{clienteMedio}}/recomendacion", "host": ["{{baseUrl}}"], "path": ["scoring", "{{clienteMedio}}", "recomendacion"] }
       }
     },
@@ -256,7 +283,7 @@
       "request": {
         "method": "GET",
         "header": [{ "key": "Authorization", "value": "Bearer {{tokenTendero}}" }],
-        "url": { "raw": "{{baseUrl}}/scoring/{{clienteMedio}}/recomendacion", "host": ["{{baseUrl}}"], "path": ["scoring", "{{clienteMedio}}", "recomendacion"] }
+        "url": { "raw": "{{baseUrl}}/scoring/{{clienteConHistorial}}/recomendacion", "host": ["{{baseUrl}}"], "path": ["scoring", "{{clienteConHistorial}}", "recomendacion"] }
       }
     },
     {
