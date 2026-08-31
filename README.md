@@ -34,6 +34,8 @@ Registro de fiados con fecha límite, abonos parciales o totales y actualizació
 ### Scoring crediticio
 Cuatro variables de 25 puntos cada una — puntualidad, cumplimiento, historial y antigüedad — que suman un puntaje de 0 a 100.
 
+El scoring es **por par cliente-tendero**, no por cliente. Los puntos salen de los créditos que otorgó esa tienda, así que un mismo cliente puede tener niveles distintos en dos negocios: 85 puntos y "aprobar" en uno, 20 y "rechazar" en otro. Es lo coherente con el aislamiento de datos del sistema, ya que ningún tendero debería decidir a partir del historial de un competidor.
+
 | Nivel | Puntaje | Recomendación |
 |-------|---------|---------------|
 | bajo | ≥ 80 | aprobar |
@@ -129,7 +131,7 @@ Actualizar `mobile/config/config.ts` con la IP del backend en la red local.
 roles → usuario → sesiones
                 → tenderos → tendero_cliente ↔ clientes
                                   ↘ creditos → abonos
-                                  ↘ scoring
+                                  ↘ scoring          (único por cliente + tendero)
                                   ↘ metricas_cartera
                                   ↘ alertas
                                   ↘ recordatorios
