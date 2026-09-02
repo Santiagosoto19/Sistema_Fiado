@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "288132468324",
+    "project_id": "fiadocheck",
+    "storage_bucket": "fiadocheck.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:288132468324:android:1a230603d55c63de5d9971",
+        "android_client_info": {
+          "package_name": "com.fiadocheck.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDkwMncWjBk-ZzTDj8eOYcw4FuOabXxv9Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

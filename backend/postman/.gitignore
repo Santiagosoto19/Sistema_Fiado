@@ -1,0 +1,11 @@
+# Dependencias locales (npm install en esta carpeta)
+node_modules/
+
+# Reportes generados por Newman / run-postman-docs.ps1
+reports/
+*.log
+
+# Entornos locales con overrides personales (opcional)
+*.postman_environment.local.json
+.env
+.env.*

@@ -1,0 +1,481 @@
+{
+  "name": "FiadoCheck — Asistente IA (Chat)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fiadocheck-asistente",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f7d54e34-45df-4af6-b622-edd894301350",
+      "name": "Webhook Chat",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -272,
+        224
+      ],
+      "webhookId": "fiadocheck-asistente-chat"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.message }}",
+        "options": {
+          "systemMessage": "Eres el Asistente IA de FiadoCheck, un sistema de gestión de crédito informal para tenderos de barrio en Colombia.\n\nReglas generales:\n- Responde siempre en español, con tono cercano y profesional.\n- Usa pesos colombianos (COP) como moneda.\n- Montos deben ir como números enteros sin separadores: 120000.\n- Fechas deben ir en formato ISO: YYYY-MM-DD.\n- La cédula del cliente es su identificacion/clienteId.\n- Solo operas sobre la cartera del tendero autenticado. Nunca sobre clientes de otros tenderos.\n- No incluyas información sensible ni datos de otra persona.\n- Tras ejecutar una herramienta con éxito, resume el resultado en lenguaje natural para el usuario.\n\nHerramientas disponibles:\n1. buscar_cliente — Consultar cliente, deuda, historial o estado de deuda.\n2. agregar_credito — Registrar un crédito/fiado nuevo (solo para clientes vinculados).\n3. agregar_pago — Registrar un abono/pago a un crédito (solo para clientes vinculados).\n4. agregar_cliente — Vincular un cliente EXISTENTE en el sistema a la cartera del tendero.\n5. consultar_cartera — Da un resumen general de la cartera: total por cobrar y cantidad de clientes en mora, al día y sin deuda.\n6. mayor_deudor — Devuelve el o los clientes que más deben, ordenados de mayor a menor deuda.\n7. creditos_vencidos — Lista los créditos activos cuya fecha límite de pago ya pasó y siguen con saldo pendiente.\n\nCuándo usar cada herramienta:\n- Usa `buscar_cliente` con `clienteId` para buscar por cédula exacta.\n- Usa `buscar_cliente` con `query` para buscar por nombre o cédula parcial.\n- Usa `buscar_cliente` con `estado` (`mora`, `al_dia`, `sin_deuda`) para filtrar clientes por situación de deuda.\n- Usa `agregar_cliente` cuando el tendero quiera vincular a su cartera un cliente que YA EXISTE en el sistema (ya está registrado). Solo necesitas la cédula (`identificacion`). Si el cliente no existe en el sistema, informa que no es posible vincularlo y que debe registrarse primero en la app.\n- Usa `agregar_credito` cuando el tendero quiera registrar un fiado/crédito. El cliente DEBE estar previamente vinculado a la cartera de este tendero. Si no lo está, usa primero `agregar_cliente`. Necesitas: clienteId (cédula), montoTotal, fechaLimitePago, y opcionalmente descripción.\n- Usa `agregar_pago` cuando el tendero quiera registrar un abono o pago. Solo puedes hacerlo sobre créditos de clientes vinculados a este tendero. Necesitas: creditoId (obtenido desde buscar_cliente), monto, y opcionalmente fechaAbono (default hoy).\n- Usa `consultar_cartera` para preguntas generales como \"¿cuánto me deben en total?\", \"¿cómo va mi cartera?\" o \"¿cuántos clientes tengo en mora?\". No requiere parámetros.\n- Usa `mayor_deudor` para preguntas como \"¿quién me debe más?\" o \"¿cuáles son mis top deudores?\". Acepta opcionalmente `top_n` si el tendero pide más de un resultado (ej: \"los 3 que más me deben\" → top_n: 3). Si no especifica cantidad, usa el valor por defecto (1).\n- Usa `creditos_vencidos` para preguntas como \"¿qué créditos están vencidos?\" o \"¿quién se pasó de la fecha de pago?\". No requiere parámetros.\n\nCuándo preguntar antes de actuar:\n- Pregunta ÚNICAMENTE cuando falte un dato que solo el tendero puede darte (ej: monto, fecha límite, cédula del cliente).\n- Si ya tienes los datos necesarios, actúa directamente sin preguntar.\n- No hagas suposiciones sobre datos que no tienes; en ese caso sí pregunta.\n- Para las herramientas de consulta general (`consultar_cartera`, `mayor_deudor`, `creditos_vencidos`) nunca preguntes antes de ejecutar, ya que no requieren datos adicionales del tendero.\n\nFormato de respuesta:\n- Ejecuta las herramientas usando tool calls, no describas el JSON como texto.\n- Después de ejecutar una herramienta, responde siempre en lenguaje natural claro, con emojis moderados, resumiendo el resultado de forma cercana y útil para el tendero.\n- Si hay un error del servidor (403, 404, 500), explícalo en lenguaje natural sin mostrar el JSON crudo."
+        }
+      },
+      "id": "355d7805-ae9d-43ad-9a7c-0708109c1865",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        272,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook Chat').item.json.body.sessionId }}",
+        "contextWindowLength": 10
+      },
+      "id": "4e42736a-d05b-43f7-927c-200e9fd1232d",
+      "name": "Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.2,
+      "position": [
+        208,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const webhook = $('Webhook Chat').first().json.body;\nconst agentOut = $input.first().json;\nconst raw = agentOut.output ?? agentOut.text ?? '';\n\n// Extrae ACTION:<tool> si el agente lo incluyó\nconst actionMatch = raw.match(/ACTION:([a-z_]+)/i);\nconst action_executed = actionMatch ? actionMatch[1].toLowerCase() : null;\n\n// Limpia la línea ACTION del texto visible\nconst sinAction = raw.replace(/\\n?ACTION:[a-z_]+/gi, '').trim();\n\n// Limpia sintaxis markdown que React Native no puede renderizar como texto plano\nfunction limpiarMarkdown(texto) {\n  return texto\n    .replace(/\\*\\*(.*?)\\*\\*/g, '$1')      // quita ** pero deja el texto\n    .replace(/^#{1,6}\\s*/gm, '')           // quita # de headers si el modelo los usa\n    .replace(/^\\s*-\\s+/gm, '• ')           // convierte \"- item\" en \"• item\"\n    .replace(/\\n{3,}/g, '\\n\\n')            // evita más de 2 saltos de línea seguidos\n    .trim();\n}\n\nconst respuesta = limpiarMarkdown(sinAction);\n\nconst sugerenciasPorAccion = {\n  buscar_cliente: ['Registrar un pago', 'Agregar crédito', 'Ver mora'],\n  agregar_credito: ['Consultar saldo', 'Registrar pago'],\n  agregar_pago: ['Ver historial', '¿Quién me debe más?'],\n  agregar_cliente: ['Agregar crédito', 'Buscar cliente'],\n};\n\nreturn [{\n  json: {\n    respuesta,\n    mensaje: respuesta,\n    action_executed,\n    sessionId: webhook.sessionId,\n    sugerencias: action_executed\n      ? (sugerenciasPorAccion[action_executed] ?? [])\n      : ['¿Quién me debe más?', 'Créditos vencidos', '¿Cuánto me deben en total?'],\n    success: true,\n  },\n}];"
+      },
+      "id": "8e80526c-fc84-4ee5-8a67-a7652366a759",
+      "name": "Formatear Respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        656,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "e805850b-3839-40fe-8d28-393782042bf2",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        976,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## FiadoCheck Asistente IA\n\n**Webhook POST:** `/webhook/fiadocheck-asistente`\n\n**Variables de entorno n8n:**\n- `FIADOCHECK_API_URL` → ej. `http://host.docker.internal:3000/api`\n\n**Credenciales:** OpenAI en nodo *OpenAI Chat Model*\n\n**Auth:** El hook debe enviar `authToken` (JWT del tendero) en el body para que las Tools llamen al backend Express.",
+        "height": 320,
+        "width": 420
+      },
+      "id": "e079395d-3364-4d98-9bcd-809fcde8ed0c",
+      "name": "Notas de integración",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -496,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "openrouter/free",
+          "mode": "list",
+          "cachedResultName": "openrouter/free"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -448,
+        528
+      ],
+      "id": "1554f152-bb59-4781-85ae-db2927695036",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "GKLyj0DqIuYu1o0q",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "Registra un nuevo crédito (fiado) para un cliente existente en la cartera del tendero.",
+        "jsCode": "const base = 'https://fiadocheck-api.azurewebsites.net/api';\nconst webhook = $('Webhook Chat').first().json.body;\nconst token = webhook.authToken;\n\nconst clienteId = query.clienteId?.trim();\nconst montoTotal = Number(query.montoTotal);\nconst descripcion = query.descripcion?.trim() || '';\nconst fechaLimitePago = query.fechaLimitePago?.trim();\n\nif (!token) return JSON.stringify({ error: 'authToken requerido' });\nif (!clienteId || !montoTotal || !fechaLimitePago) {\n  return JSON.stringify({ error: 'clienteId, montoTotal y fechaLimitePago son requeridos' });\n}\n\ntry {\n  const data = await this.helpers.httpRequest({\n    method: 'POST',\n    url: `${base}/creditos`,\n    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },\n    body: { clienteId, montoTotal, descripcion, fechaLimitePago },\n    json: true,\n  });\n  return JSON.stringify({ status: 201, data });\n} catch (error) {\n  const status = error.statusCode || 500;\n  const msg = status === 403\n    ? `El cliente con cédula ${clienteId} no está vinculado a tu cartera. Usa agregar_cliente primero.`\n    : status === 404\n    ? `No se encontró al cliente con cédula ${clienteId} en el sistema.`\n    : error.message;\n  return JSON.stringify({ status, error: msg });\n}",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"clienteId\": { \"type\": \"string\", \"description\": \"Cédula del cliente (debe estar vinculado a la cartera del tendero)\" },\n    \"montoTotal\": { \"type\": \"number\", \"description\": \"Monto total del crédito en COP (entero, sin separadores)\" },\n    \"descripcion\": { \"type\": \"string\", \"description\": \"Descripción del crédito, ej: mercado, ropa (opcional)\" },\n    \"fechaLimitePago\": { \"type\": \"string\", \"description\": \"Fecha límite de pago en formato YYYY-MM-DD\" }\n  },\n  \"required\": [\"clienteId\", \"montoTotal\", \"fechaLimitePago\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        1104,
+        736
+      ],
+      "id": "b526c048-41e1-4a82-a6d6-42c795a9cefd",
+      "name": "agregar_credito"
+    },
+    {
+      "parameters": {
+        "description": "Registra un abono/pago sobre un crédito activo. Requiere creditoId, monto y opcionalmente fechaAbono en formato YYYY-MM-DD (default hoy).",
+        "jsCode": "const base = 'https://fiadocheck-api.azurewebsites.net/api';\nconst webhook = $('Webhook Chat').first().json.body;\nconst token = webhook.authToken;\n\nconst creditoId = query.creditoId?.trim();\nconst monto = Number(query.monto);\nconst fechaAbono = query.fechaAbono?.trim() || new Date().toISOString().slice(0, 10);\n\nif (!token) return JSON.stringify({ error: 'authToken requerido' });\nif (!creditoId || !monto) return JSON.stringify({ error: 'creditoId y monto son requeridos' });\nif (monto <= 0) return JSON.stringify({ error: 'El monto debe ser mayor a 0' });\n\ntry {\n  const data = await this.helpers.httpRequest({\n    method: 'POST',\n    url: `${base}/creditos/${encodeURIComponent(creditoId)}/abonos`,\n    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },\n    body: { monto, fechaAbono },\n    json: true,\n  });\n  return JSON.stringify({ status: 200, data });\n} catch (error) {\n  const status = error.statusCode || 500;\n  const msg = status === 404\n    ? `No se encontró el crédito con ID ${creditoId}. Usa buscar_cliente para obtener el creditoId correcto.`\n    : status === 403\n    ? 'Este crédito no pertenece a un cliente de tu cartera.'\n    : error.message;\n  return JSON.stringify({ status, error: msg });\n}",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"creditoId\": { \"type\": \"string\", \"description\": \"ID del crédito (obtenido desde buscar_cliente en creditos_activos[].id_credito)\" },\n    \"monto\": { \"type\": \"number\", \"description\": \"Monto del abono en COP (entero, mayor a 0)\" },\n    \"fechaAbono\": { \"type\": \"string\", \"description\": \"Fecha del abono en formato YYYY-MM-DD (opcional, default: hoy)\" }\n  },\n  \"required\": [\"creditoId\", \"monto\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        944,
+        832
+      ],
+      "id": "691e0a9b-515f-44c0-a4a7-f50720210b8f",
+      "name": "agregar_pago"
+    },
+    {
+      "parameters": {
+        "description": "Crea un cliente nuevo y lo vincula a la cartera del tendero autenticado.",
+        "jsCode": "const base = 'https://fiadocheck-api.azurewebsites.net/api';\nconst webhook = $('Webhook Chat').first().json.body;\nconst token = webhook.authToken;\nconst identificacion = query.identificacion?.trim();\n\nif (!token) return JSON.stringify({ error: 'authToken requerido' });\nif (!identificacion) return JSON.stringify({ error: 'La cédula (identificacion) del cliente es requerida' });\n\ntry {\n  // 1. Verificar que el cliente existe en el sistema\n  let clienteData;\n  try {\n    clienteData = await this.helpers.httpRequest({\n      method: 'GET',\n      url: `${base}/clientes/${encodeURIComponent(identificacion)}`,\n      headers: { Authorization: `Bearer ${token}` },\n      json: true,\n    });\n  } catch (lookupErr) {\n    if (lookupErr.statusCode === 404) {\n      return JSON.stringify({ error: `No existe ningún cliente con cédula ${identificacion} en el sistema. El cliente debe registrarse primero en la aplicación antes de poder vincularse a tu cartera.` });\n    }\n    throw lookupErr;\n  }\n\n  // 2. Asociar el cliente existente a la cartera del tendero\n  const data = await this.helpers.httpRequest({\n    method: 'POST',\n    url: `${base}/clientes`,\n    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },\n    body: {\n      nombre: clienteData.nombre_completo,\n      identificacion,\n      telefono: clienteData.telefono,\n      direccion: clienteData.direccion || ''\n    },\n    json: true,\n  });\n  return JSON.stringify({ status: 200, cliente_vinculado: clienteData.nombre_completo, id_cliente: clienteData.id_cliente, data });\n} catch (error) {\n  return JSON.stringify({ status: error.statusCode || 500, error: error.message });\n}\n",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"identificacion\": { \"type\": \"string\", \"description\": \"Cédula del cliente existente a vincular a la cartera del tendero\" }\n  },\n  \"required\": [\"identificacion\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        752,
+        896
+      ],
+      "id": "8b065d62-4f5e-4b38-8336-5e70eb55f6f6",
+      "name": "agregar_cliente"
+    },
+    {
+      "parameters": {
+        "name": "buscar_cliente",
+        "description": "Consulta información de un cliente: saldo, créditos activos e historial. Proporciona clienteId (cédula) para detalle completo, o query para buscar por nombre.",
+        "jsCode": "const base = 'https://fiadocheck-api.azurewebsites.net/api';\nconst webhook = $('Webhook Chat').first().json.body;\nconst token = webhook.authToken;\nconst idTendero = webhook.id_tendero ?? webhook.metadata?.id_tendero;\n\nif (!token) {\n  return JSON.stringify({ error: 'authToken requerido: el backend filtra por tendero vía JWT' });\n}\n\nconst clienteId = query.clienteId?.trim();\nconst queryTexto = query.query?.trim();\n\nconst headers = { Authorization: `Bearer ${token}` };\n\nasync function fetchJson(url) {\n  try {\n    const data = await this.helpers.httpRequest({\n      method: 'GET',\n      url,\n      headers,\n      json: true,\n    });\n    return { status: 200, data };\n  } catch (error) {\n    return { status: error.statusCode || 500, data: { error: error.message } };\n  }\n}\n\nif (clienteId) {\n  const [detalle, historial, creditos] = await Promise.all([\n    fetchJson.call(this, `${base}/clientes/${encodeURIComponent(clienteId)}`),\n    fetchJson.call(this, `${base}/clientes/${encodeURIComponent(clienteId)}/historial`),\n    fetchJson.call(this, `${base}/creditos/cliente/${encodeURIComponent(clienteId)}`),\n  ]);\n  return JSON.stringify({ id_tendero: idTendero, detalle: detalle.data, historial: historial.data, creditos_activos: creditos.data });\n}\n\nif (queryTexto) {\n  const busqueda = await fetchJson.call(this, `${base}/clientes?q=${encodeURIComponent(queryTexto)}`);\n  return JSON.stringify({ id_tendero: idTendero, resultados: busqueda.data });\n}\n\nreturn JSON.stringify({ error: 'Debes proporcionar clienteId o query' });",
+        "specifyInputSchema": true,
+        "jsonSchemaExample": "{\n  \"clienteId\": \"1035770283\",\n  \"query\": \"Juan Pérez\"\n}"
+      },
+      "id": "57f79621-3114-4b4f-af63-fdc39cfde726",
+      "name": "buscar Cliente",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1,
+      "position": [
+        544,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -560,
+        352
+      ],
+      "id": "9ab2faa8-9574-4b24-9959-4b5ad303993f",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "PkdXJZXVS0KCLuAM",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -368,
+        768
+      ],
+      "id": "d1e75865-42dc-4feb-84ae-92c18d1d5c1e",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "bENGnhkueAuAa8eH",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "Da un resumen de la cartera del tendero: total por cobrar, cantidad de clientes en mora, al día y sin deuda.",
+        "jsCode": "const base = 'https://fiadocheck-api.azurewebsites.net/api';\nconst webhook = $('Webhook Chat').first().json.body;\nconst token = webhook.authToken;\n\nif (!token) return JSON.stringify({ error: 'authToken requerido' });\n\nconst headers = { Authorization: `Bearer ${token}` };\n\nasync function fetchJson(url) {\n  try {\n    const data = await this.helpers.httpRequest({ method: 'GET', url, headers, json: true });\n    return { status: 200, data };\n  } catch (error) {\n    return { status: error.statusCode || 500, data: { error: error.message } };\n  }\n}\n\nconst [mora, alDia, sinDeuda] = await Promise.all([\n  fetchJson.call(this, `${base}/clientes?estado=mora`),\n  fetchJson.call(this, `${base}/clientes?estado=al_dia`),\n  fetchJson.call(this, `${base}/clientes?estado=sin_deuda`),\n]);\n\nconst listaMora = Array.isArray(mora.data) ? mora.data : (mora.data?.resultados ?? []);\nconst totalPorCobrar = listaMora.reduce((sum, c) => sum + (c.deuda_total ?? 0), 0);\n\nreturn JSON.stringify({\n  total_por_cobrar: totalPorCobrar,\n  clientes_en_mora: listaMora.length,\n  clientes_al_dia: (Array.isArray(alDia.data) ? alDia.data : alDia.data?.resultados ?? []).length,\n  clientes_sin_deuda: (Array.isArray(sinDeuda.data) ? sinDeuda.data : sinDeuda.data?.resultados ?? []).length,\n});",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {},\n  \"required\": []\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        1248,
+        688
+      ],
+      "id": "30fb35d5-13a1-4d3d-9750-b004a3848ad5",
+      "name": "consultar_cartera"
+    },
+    {
+      "parameters": {
+        "description": "Devuelve el o los clientes que más deben, ordenados de mayor a menor deuda.",
+        "jsCode": "const base = 'https://fiadocheck-api.azurewebsites.net/api';\nconst webhook = $('Webhook Chat').first().json.body;\nconst token = webhook.authToken;\nconst topN = Number(query.top_n) || 1;\n\nif (!token) return JSON.stringify({ error: 'authToken requerido' });\n\ntry {\n  const data = await this.helpers.httpRequest({\n    method: 'GET',\n    url: `${base}/clientes?estado=mora`,\n    headers: { Authorization: `Bearer ${token}` },\n    json: true,\n  });\n  const lista = Array.isArray(data) ? data : (data?.resultados ?? []);\n  const ordenado = [...lista].sort((a, b) => (b.deuda_total ?? 0) - (a.deuda_total ?? 0));\n  return JSON.stringify({ top_deudores: ordenado.slice(0, topN) });\n} catch (error) {\n  return JSON.stringify({ status: error.statusCode || 500, error: error.message });\n}",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"top_n\": { \"type\": \"number\", \"description\": \"Cuántos clientes devolver, ordenados por deuda descendente (opcional, default 1)\" }\n  },\n  \"required\": []\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        1360,
+        528
+      ],
+      "id": "0ec73008-6f94-4673-9fb0-160b21742b56",
+      "name": "mayor_deudor"
+    },
+    {
+      "parameters": {
+        "description": "Lista los créditos activos cuya fecha límite de pago ya pasó y siguen con saldo pendiente.",
+        "jsCode": "const base = 'https://fiadocheck-api.azurewebsites.net/api';\nconst webhook = $('Webhook Chat').first().json.body;\nconst token = webhook.authToken;\n\nif (!token) return JSON.stringify({ error: 'authToken requerido' });\n\ntry {\n  const data = await this.helpers.httpRequest({\n    method: 'GET',\n    url: `${base}/clientes?estado=mora`,\n    headers: { Authorization: `Bearer ${token}` },\n    json: true,\n  });\n\n  const lista = Array.isArray(data) ? data : (data?.resultados ?? []);\n  const hoy = new Date().toISOString().slice(0, 10);\n\n  // Busca créditos activos de cada cliente en mora y filtra los vencidos\n  const headers = { Authorization: `Bearer ${token}` };\n  const detalles = await Promise.all(\n    lista.map(async (c) => {\n      const id = c.id_cliente ?? c.clienteId ?? c.identificacion;\n      try {\n        const creditos = await this.helpers.httpRequest({\n          method: 'GET',\n          url: `${base}/creditos/cliente/${encodeURIComponent(id)}`,\n          headers,\n          json: true,\n        });\n        const listaCreditos = Array.isArray(creditos) ? creditos : (creditos?.data ?? []);\n        const vencidos = listaCreditos.filter(cr => {\n          const fecha = cr.fechaLimitePago ?? cr.fecha_limite_pago;\n          const saldo = cr.saldoPendiente ?? cr.saldo_pendiente ?? cr.montoTotal ?? cr.monto_total;\n          return fecha && fecha < hoy && saldo > 0;\n        });\n        return vencidos.map(v => ({ cliente: c.nombre ?? c.nombre_completo, id_cliente: id, ...v }));\n      } catch {\n        return [];\n      }\n    })\n  );\n\n  return JSON.stringify({ creditos_vencidos: detalles.flat() });\n} catch (error) {\n  return JSON.stringify({ status: error.statusCode || 500, error: error.message });\n}",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {},\n  \"required\": []\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        1440,
+        384
+      ],
+      "id": "6001b755-109a-4dc7-9492-59eeebc84c12",
+      "name": "creditos_vencidos"
+    },
+    {
+      "parameters": {
+        "model": "anthropic/claude-haiku-4.5",
+        "options": {}
+      },
+      "id": "a638fbd4-f2b3-43d4-baa6-352eebf95cd8",
+      "name": "OpenRouter Model Push",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        464
+      ],
+      "credentials": {
+        "openRouterApi": {
+          "id": "SONapPheSFxcbG44",
+          "name": "FiadoCheck OpenRouter"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Chat": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Formatear Respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Respuesta": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "agregar_credito": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agregar_pago": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agregar_cliente": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "buscar Cliente": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "consultar_cartera": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "mayor_deudor": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "creditos_vencidos": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Model Push": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "d0872fff-aa69-4ccc-9a57-033f47b23702",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "72a173b926f932a2451888a00fe8c52cb226d7c39739fd208267598173a68353"
+  },
+  "nodeGroups": [],
+  "id": "J2cXLiwbUhyabB7R",
+  "tags": [
+    {
+      "updatedAt": "2026-07-08T23:28:30.276Z",
+      "createdAt": "2026-07-08T23:28:30.276Z",
+      "id": "ZXvzrTkTOABKgvad",
+      "name": "AI Agent"
+    },
+    {
+      "updatedAt": "2026-07-08T23:28:29.088Z",
+      "createdAt": "2026-07-08T23:28:29.088Z",
+      "id": "p9EYKw54FzKrIDvp",
+      "name": "FiadoCheck"
+    }
+  ]
+}

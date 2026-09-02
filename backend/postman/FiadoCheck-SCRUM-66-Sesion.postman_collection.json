@@ -1,0 +1,219 @@
+{
+  "info": {
+    "name": "FiadoCheck — SCRUM-66 Revocación de sesión (AUTH-09, AUTH-10)",
+    "description": "Colección ejecutable del bloque §4.1 del plan de pruebas — revocación e invalidación de sesión (responsable: Eliel).\n\nCubre AUTH-09 (lado HTTP) y AUTH-10 completo.\n\nIMPORTANTE — AUTH-09 tiene una parte que Postman NO puede verificar: que la columna `revocado` de la tabla `sesiones` quede en `true`. Para eso la petición 02 calcula el SHA256 del token y lo deja en la variable `tokenHash`, además de imprimirlo en la Console de Postman junto con la consulta SQL lista para pegar en la consola de NeonDB.\n\nCÓMO USARLA\n1. Selecciona el environment 'FiadoCheck — Local'.\n2. Abre la Console de Postman (abajo a la izquierda, o Ctrl+Alt+C) ANTES de correr: ahí aparece el hash y el SQL.\n3. Ejecuta con el Collection Runner en orden.\n4. Copia el SQL de la Console y ejecútalo en NeonDB para cerrar AUTH-09.\n\nLÓGICA DE LA PRUEBA\nLa petición 03 es un control: confirma que el token funciona ANTES del logout. Sin ese control, un 401 en la petición 05 no probaría nada — podría deberse a un token mal formado y no a la revocación.\n\nRE-EJECUTABLE: cada corrida crea su propio tendero con dominio @test.fiadocheck.com. Limpieza:\n  DELETE FROM usuario WHERE email LIKE '%@test.fiadocheck.com';",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "runId", "value": "" },
+    { "key": "tenderoEmail", "value": "" },
+    { "key": "tenderoCedula", "value": "" },
+    { "key": "tenderoPassword", "value": "Fiado2026Test" },
+    { "key": "tokenTendero", "value": "" },
+    { "key": "tokenHash", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "01 — Setup: registerTendero (usuario desechable)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const ts = Date.now().toString().slice(-9);",
+              "pm.collectionVariables.set('runId', ts);",
+              "pm.collectionVariables.set('tenderoEmail', 'sesion.' + ts + '@test.fiadocheck.com');",
+              "pm.collectionVariables.set('tenderoCedula', ts);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Setup — tendero de prueba creado', function () {",
+              "    pm.response.to.have.status(201);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nombre_completo\": \"Sesion Prueba {{runId}}\",\n  \"email\": \"{{tenderoEmail}}\",\n  \"telefono\": \"3001234567\",\n  \"cedula\": \"{{tenderoCedula}}\",\n  \"direccion\": \"Calle 10 # 20-30\",\n  \"num_camara_comercio\": \"CC-{{runId}}\",\n  \"password\": \"{{tenderoPassword}}\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/auth/registerTendero", "host": ["{{baseUrl}}"], "path": ["auth", "registerTendero"] }
+      }
+    },
+    {
+      "name": "02 — Setup: login y cálculo del token_hash",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const CryptoJS = require('crypto-js');",
+              "",
+              "pm.test('Setup — login correcto', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const token = pm.response.json().token;",
+              "pm.collectionVariables.set('tokenTendero', token);",
+              "",
+              "// El backend guarda en sesiones.token_hash el SHA256 hex del token.",
+              "// Ver middleware/auth.js: crypto.createHash('sha256').update(token).digest('hex')",
+              "const hash = CryptoJS.SHA256(token).toString(CryptoJS.enc.Hex);",
+              "pm.collectionVariables.set('tokenHash', hash);",
+              "",
+              "console.log('===== AUTH-09: datos para la verificación en NeonDB =====');",
+              "console.log('token_hash:', hash);",
+              "console.log('');",
+              "console.log('Ejecuta esto en NeonDB DESPUÉS de que corra la petición 04:');",
+              "console.log(\"SELECT token_hash, revocado, expires_at FROM sesiones WHERE token_hash = '\" + hash + \"';\");",
+              "console.log('Esperado: revocado = true');",
+              "console.log('========================================================');",
+              "",
+              "pm.test('Setup — token_hash calculado (64 caracteres hex)', function () {",
+              "    pm.expect(hash).to.match(/^[0-9a-f]{64}$/);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{tenderoEmail}}\",\n  \"password\": \"{{tenderoPassword}}\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+      }
+    },
+    {
+      "name": "03 — CONTROL: el token funciona ANTES del logout → 200",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Control — el token es válido antes de cerrar sesión', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Control — devuelve el perfil del tendero', function () {",
+              "    pm.expect(pm.response.json()).to.have.property('id_usuario');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{tokenTendero}}" }],
+        "url": { "raw": "{{baseUrl}}/auth/profile", "host": ["{{baseUrl}}"], "path": ["auth", "profile"] }
+      }
+    },
+    {
+      "name": "04 — AUTH-09: POST /auth/logout → 200",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-09 — el logout responde 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test('AUTH-09 — mensaje de confirmación', function () {",
+              "    pm.expect(pm.response.json().message).to.include('Sesión cerrada');",
+              "});",
+              "",
+              "console.log('AUTH-09 — verificación pendiente en base de datos:');",
+              "console.log(\"SELECT token_hash, revocado, expires_at FROM sesiones WHERE token_hash = '\" + pm.collectionVariables.get('tokenHash') + \"';\");",
+              "console.log('Esperado: revocado = true (columna booleana, NO estado = revocado)');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{tokenTendero}}" }],
+        "url": { "raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth", "logout"] }
+      }
+    },
+    {
+      "name": "05 — AUTH-10: token revocado en endpoint protegido → 401",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-10 — el token revocado devuelve 401', function () {",
+              "    pm.response.to.have.status(401);",
+              "});",
+              "pm.test('AUTH-10 — mensaje de sesión inválida', function () {",
+              "    pm.expect(pm.response.json().error).to.include('Token inválido o sesión expirada');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{tokenTendero}}" }],
+        "url": { "raw": "{{baseUrl}}/auth/profile", "host": ["{{baseUrl}}"], "path": ["auth", "profile"] }
+      }
+    },
+    {
+      "name": "06 — AUTH-10: token revocado en otro endpoint protegido → 401",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-10 — la revocación aplica a todo el middleware, no solo a /profile', function () {",
+              "    pm.response.to.have.status(401);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{tokenTendero}}" }],
+        "url": { "raw": "{{baseUrl}}/dashboard", "host": ["{{baseUrl}}"], "path": ["dashboard"] }
+      }
+    },
+    {
+      "name": "07 — AUTH-10: segundo logout con token revocado → 401",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AUTH-10 — no se puede reutilizar el token ni para cerrar sesión otra vez', function () {",
+              "    pm.response.to.have.status(401);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{tokenTendero}}" }],
+        "url": { "raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth", "logout"] }
+      }
+    }
+  ]
+}

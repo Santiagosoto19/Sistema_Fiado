@@ -12,6 +12,8 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.fiadocheck.mobile",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -38,11 +40,25 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "color": "#00D09E"
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "cb470a5e-2cb9-499a-a91f-edddfecd5f24"
+      }
+    },
+    "owner": "eliel_berrio"
   }
 }

@@ -2,13 +2,6 @@
 
 App móvil para gestionar el crédito informal ("fiado") en tiendas de barrio. Registra clientes, créditos y abonos, controla la cartera, clasifica el riesgo crediticio con un modelo Random Forest y automatiza alertas de mora y un asistente por chat con n8n. React Native, Node.js y PostgreSQL. Proyecto de grado — Ingeniería de Sistemas.
 
-> **El proyecto completo está en la rama [`develop`](../../tree/develop).**
-> Esta rama (`main`) contiene una reestructuración del backend hacia una
-> arquitectura modular, pero todavía no incluye el microservicio de machine
-> learning, el asistente n8n, el despliegue automatizado ni la app móvil
-> completa. Este documento describe el sistema en su estado actual, que se
-> integrará a `main` en la próxima fusión.
-
 ---
 
 ## Estado del proyecto
@@ -23,6 +16,43 @@ App móvil para gestionar el crédito informal ("fiado") en tiendas de barrio. R
 
 ---
 
+## Estructura
+
+```
+Sistema_Fiado/
+├── backend/                  # API REST (Express + PostgreSQL)
+│   ├── src/
+│   │   ├── index.js                 # Entry point, monta /api/*
+│   │   ├── config/database.js       # Pool de conexiones (NeonDB)
+│   │   ├── middleware/auth.js       # JWT + validación de sesión
+│   │   ├── routes/                  # auth, dashboard, cartera, clientes,
+│   │   │                            # creditos, abonos, pagos, scoring,
+│   │   │                            # alertas, analitica, reportes, asistente
+│   │   └── utils/                   # mlServiceClient, mlScoring, mlTrigger
+│   ├── ml_service/           # Microservicio Python (FastAPI)
+│   │   ├── model.py                 # Entrenamiento del Random Forest
+│   │   ├── predict.py               # /predict y /ml/retrain
+│   │   ├── features.py              # Extracción de features y estado
+│   │   └── test_ml.py               # Verificación sin curl
+│   ├── postman/              # Colecciones de pruebas (ver sección Pruebas)
+│   └── scripts/              # Seeds y migraciones SQL
+│
+├── mobile/                   # App Expo / React Native (expo-router)
+│   └── app/
+│       ├── (auth)/                  # login, registerTendero, registerClientes
+│       ├── (tabs)/                  # dashboard, clientes, pagos, wallet,
+│       │                            # vistaUsuario, perfilCliente, Asistenteia
+│       ├── addcredit.tsx            # Nuevo crédito con recomendación IA
+│       ├── registerpayment.tsx      # Registro de abonos
+│       ├── creditoDetalle.tsx       # Detalle e historial del crédito
+│       └── notificaciones.tsx       # Bandeja de alertas
+│
+├── n8n/workflows/            # Workflow del asistente IA
+└── visual/                   # Mockups de referencia
+```
+
+---
+
 ## Módulos
 
 ### Gestión de clientes
@@ -33,8 +63,6 @@ Registro de fiados con fecha límite, abonos parciales o totales y actualizació
 
 ### Scoring crediticio
 Cuatro variables de 25 puntos cada una — puntualidad, cumplimiento, historial y antigüedad — que suman un puntaje de 0 a 100.
-
-El scoring es **por par cliente-tendero**, no por cliente. Los puntos salen de los créditos que otorgó esa tienda, así que un mismo cliente puede tener niveles distintos en dos negocios: 85 puntos y "aprobar" en uno, 20 y "rechazar" en otro. Es lo coherente con el aislamiento de datos del sistema, ya que ningún tendero debería decidir a partir del historial de un competidor.
 
 | Nivel | Puntaje | Recomendación |
 |-------|---------|---------------|
@@ -98,8 +126,6 @@ N8N_WEBHOOK_URL=https://tu-instancia-n8n/webhook/...
 
 ### 2. Microservicio ML
 
-> Disponible en la rama `develop`.
-
 ```bash
 cd backend/ml_service
 python -m venv venv
@@ -113,6 +139,12 @@ python predict.py                # levanta FastAPI en el puerto 8000
 
 El puerto se resuelve en este orden: `ML_PORT`, luego `PORT`, y por defecto `8000`. La variable `ML_PORT` existe para fijar el puerto en local sin interferir con `PORT`, que es la que inyecta Azure App Service.
 
+Verificación rápida:
+
+```bash
+venv\Scripts\python test_ml.py
+```
+
 ### 3. App móvil
 
 ```bash
@@ -125,13 +157,38 @@ Actualizar `mobile/config/config.ts` con la IP del backend en la red local.
 
 ---
 
+## Pruebas
+
+Las colecciones de Postman en `backend/postman/` cubren el plan de pruebas del proyecto:
+
+| Colección | Cubre |
+|-----------|-------|
+| `FiadoCheck-SCRUM-52-Auth` | Registro, login, perfil y push token |
+| `FiadoCheck-SCRUM-66-Sesion` | Revocación e invalidación de sesión |
+| `FiadoCheck-SCRUM-110-Scoring` | Cálculo de scoring e integración con el ML |
+| `FiadoCheck-SCRUM-111-Recomendacion` | Recomendación IA por nivel de riesgo |
+| `FiadoCheck-SV-Pruebas` | Sprint validación (alertas, asistente, analítica, cartera) — ver `run-postman-docs.ps1` |
+
+Importar junto con `FiadoCheck-Local.postman_environment.json` o `FiadoCheck-Azure.postman_environment.json` y ejecutar con el Collection Runner. Las credenciales de prueba están documentadas en `backend/postman/CREDENCIALES-PRUEBAS.md`.
+
+Para la colección SV con Newman y reporte automático a Obsidian:
+
+```powershell
+cd backend/postman
+.\run-postman-docs.ps1
+```
+
+Ver `backend/postman/README.md` para qué archivos van al repo y cuáles no (`node_modules/`, `reports/`).
+
+---
+
 ## Modelo de datos
 
 ```
 roles → usuario → sesiones
                 → tenderos → tendero_cliente ↔ clientes
                                   ↘ creditos → abonos
-                                  ↘ scoring          (único por cliente + tendero)
+                                  ↘ scoring
                                   ↘ metricas_cartera
                                   ↘ alertas
                                   ↘ recordatorios
@@ -155,11 +212,7 @@ roles → usuario → sesiones
 | Reportes | `GET /`, `GET /export/pdf` |
 | Asistente | `POST /asistente/chat` |
 
----
-
-## Pruebas
-
-Las colecciones de Postman en `backend/postman/` (rama `develop`) cubren el plan de pruebas del proyecto: autenticación, revocación de sesión, scoring e integración con el ML, y recomendación IA por nivel de riesgo. Se importan junto con los environments de local o Azure y se ejecutan con el Collection Runner.
+Documentación ampliada en [backend/README.md](backend/README.md).
 
 ---
 
